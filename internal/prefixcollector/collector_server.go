@@ -2,12 +2,17 @@ package prefixcollector
 
 import (
 	"context"
-	"math/big"
 	"net"
 
-	"github.com/open-policy-agent/opa/watch"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
+
+	"math/big"
 )
 
 type SubnetWatcher struct {

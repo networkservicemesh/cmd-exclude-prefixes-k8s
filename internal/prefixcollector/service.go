@@ -2,78 +2,45 @@ package prefixcollector
 
 import (
 	"context"
-	"strings"
+	"io/ioutil"
 	"sync"
+
+	"github.com/ghodss/yaml"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+
+	"os"
+	"strings"
 	"time"
 
-	"github.com/open-policy-agent/opa/plugins/rest"
 	"github.com/sirupsen/logrus"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 )
 
+type contextKeyType string
+
 const (
-	configMapName = "nsm-config"
+	ClientsetKey  contextKeyType = "clientsetKey"
+	KubeNamespace                = "kube-system"
+	KubeName                     = "kubeadm-config"
 )
 
-type prefixService struct {
-	sync.RWMutex
-	excludedPrefixes prefixpool.PrefixPool
-}
-
-// NewExcludePrefixServer creates an instance of prefixService
-func NewExcludePrefixServer(config *rest.Config) error {
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return err
-	}
-
-	emptyPrefixPool, err := prefixpool.NewPrefixPool()
-	if err != nil {
-		return err
-	}
-
-	rv := &prefixService{
-		excludedPrefixes: emptyPrefixPool,
-	}
-
-	if err := rv.monitorExcludedPrefixes(clientset); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (ps *prefixService) getExcludedPrefixes() prefixpool.PrefixPool {
-	ps.RLock()
-	defer ps.RUnlock()
-
-	return ps.excludedPrefixes
-}
-
-func (ps *prefixService) monitorExcludedPrefixes(clientset *kubernetes.Clientset) error {
-	poolCh, err := getExcludedPrefixesChan(clientset)
-	if err != nil {
-		return err
-	}
-
+func NewExcludePrefixServer(filePath string, notifyCh <-chan []string) error {
 	go func() {
-		configMaps := clientset.CoreV1().ConfigMaps(common.GetNamespace())
-		prefixes := []string{}
 		for {
 			select {
-			case pool, ok := <-poolCh:
+			case prefixes, ok := <-notifyCh:
 				if ok {
-					prefixes = pool.GetPrefixes()
 					logrus.Infof("Excluded prefixes changed: %v", prefixes)
+					if len(prefixes) > 0 {
+						// there is unsaved prefixes, save them
+						if updateExcludedPrefixesConfigmap(filePath, prefixes) {
+							prefixes = []string{}
+						}
+					}
 				}
-			case <-time.After(5 * time.Second):
-			}
-			if len(prefixes) > 0 {
-				// there is unsaved prefixes, save them
-				if updateExcludedPrefixesConfigmap(configMaps, prefixes) {
-					prefixes = []string{}
-				}
+			case <-time.After(time.Second):
 			}
 		}
 	}()
@@ -81,26 +48,119 @@ func (ps *prefixService) monitorExcludedPrefixes(clientset *kubernetes.Clientset
 	return nil
 }
 
-func updateExcludedPrefixesConfigmap(configMaps v1.ConfigMapInterface, prefixes []string) bool {
-	cm, err := configMaps.Get(context.TODO(), configMapName, metav1.GetOptions{})
+func updateExcludedPrefixesConfigmap(filePath string, prefixes []string) bool {
+	data := buildPrefixesYaml(prefixes)
+
+	err := ioutil.WriteFile(filePath, data, 0644)
 	if err != nil {
-		logrus.Errorf("Failed to get ConfigMap '%s/%s': %v", common.GetNamespace(), configMapName, err)
-		return false
+		logrus.Fatalf("Unable to write into file: %v", err.Error())
 	}
-	cm.Data[prefixpool.PrefixesFile] = buildPrefixesYaml(prefixes)
-	_, err = configMaps.Update(context.TODO(), cm, metav1.UpdateOptions{})
-	if err != nil {
-		logrus.Errorf("Failed to update ConfigMap: %v", err)
-		return false
-	}
-	logrus.Info("Successfully updated excluded prefixes config file")
+
 	return true
 }
 
-func buildPrefixesYaml(prefixes []string) string {
-	marker := "prefixes:"
-	if len(prefixes) == 0 {
-		return marker + " []"
+func buildPrefixesYaml(prefixes []string) []byte {
+	source := struct {
+		Prefixes []string
+	}{}
+	source.Prefixes = prefixes
+
+	bytes, err := yaml.Marshal(source)
+	if err != nil {
+		logrus.Errorf("Can not create marshal prefixes, err: %v", err.Error())
+		return nil
 	}
-	return strings.Join(append([]string{marker}, prefixes...), "\n- ")
+
+	return bytes
+}
+
+func FromEnv() func(context context.Context) ([]string, error) {
+	return func(context context.Context) ([]string, error) {
+		excludedPrefixesEnv, ok := os.LookupEnv(ExcludedPrefixesEnv)
+		if !ok {
+			return []string{}, nil
+		}
+		logrus.Infof("Getting excludedPrefixes from ENV: %v", excludedPrefixesEnv)
+		return strings.Split(excludedPrefixesEnv, ","), nil
+	}
+}
+
+func FromConfigMap(name, namespace string) func(context context.Context) ([]string, error) {
+	return func(context context.Context) ([]string, error) {
+		var prefixes []string
+
+		clientset := FromContext(context)
+
+		configMaps := clientset.CoreV1().ConfigMaps(namespace)
+
+		cm, err := configMaps.Get(context, name, metav1.GetOptions{})
+		if err != nil {
+			logrus.Errorf("Failed to get ConfigMap '%s/%s': %v", namespace, name, err)
+			return nil, err
+		}
+
+		source := struct {
+			Prefixes []string
+		}{}
+
+		updatePrefixes := func(bytes []byte) {
+			err := yaml.Unmarshal(bytes, &source)
+			if err != nil {
+				logrus.Errorf("Can not create unmarshal prefixes, err: %v", err.Error())
+				return
+			}
+		}
+
+		bytes := []byte(cm.Data[prefixpool.PrefixesFile])
+		updatePrefixes(bytes)
+		prefixes = source.Prefixes
+
+		return prefixes, nil
+	}
+}
+
+func FromContext(ctx context.Context) *kubernetes.Clientset {
+	return ctx.Value(ClientsetKey).(*kubernetes.Clientset)
+}
+
+func FromKubernetes() func(context context.Context) ([]string, error) {
+	var prefixes []string
+	var once sync.Once
+	var mutex sync.Mutex
+	var result []string
+
+	return func(context context.Context) ([]string, error) {
+		clientset := FromContext(context)
+
+		// checks if kubeadm-config exists
+		_, err := clientset.CoreV1().
+			ConfigMaps(KubeNamespace).
+			Get(context, KubeName, metav1.GetOptions{})
+		if err == nil {
+			prefixes, err = getExcludedPrefixesFromKubernetesConfigFile(context)
+			return prefixes, err
+		}
+
+		// monitoring goroutine
+		once.Do(func() {
+			ch := monitorSubnets(clientset)
+
+			go func() {
+				for {
+					if context.Err() != nil {
+						return
+					}
+
+					prefixes = <-ch
+					mutex.Lock()
+					result = prefixes
+					mutex.Unlock()
+				}
+			}()
+		})
+
+		mutex.Lock()
+		defer mutex.Unlock()
+		return result, nil
+	}
 }

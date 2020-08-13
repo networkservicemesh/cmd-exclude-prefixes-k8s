@@ -6,8 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/open-policy-agent/opa/watch"
+	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
 type dummyResource struct {

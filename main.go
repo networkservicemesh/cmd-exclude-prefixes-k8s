@@ -22,11 +22,14 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"github.com/networkservicemesh/sdk/pkg/tools/signalctx"
+
+	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 
 	"github.com/sirupsen/logrus"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/jaeger"
+	"github.com/networkservicemesh/sdk/pkg/tools/signalctx"
 	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
 )
 
@@ -34,7 +37,8 @@ func main() {
 	logrus.Info("Starting prefix service...")
 	utils.PrintAllEnv(logrus.StandardLogger())
 	// Capture signals to cleanup before exiting
-	c := signalctx.WithSignals(context.Background())
+	ctx := signalctx.WithSignals(context.Background())
+
 	closer := jaeger.InitJaeger("prefix-service")
 	defer func() { _ = closer.Close() }()
 
@@ -42,18 +46,33 @@ func main() {
 	defer span.Finish()
 
 	span.Logger().Printf("Building Kubernetes clientset...")
-	_, config, err := k8s_utils.NewClientSet()
+	config, err := utils.NewClientSetConfig()
 	if err != nil {
 		span.LogError(err)
 		span.Logger().Fatalln("Failed to build Kubernetes clientset: ", err)
 	}
 
 	span.Logger().Infof("Starting prefix service...")
-	err = prefixcollector.NewExcludePrefixServer(config)
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		span.Logger().Fatalln("Failed to build Kubernetes clientset: ", err)
+	}
+
+	ctx = context.WithValue(ctx, prefixcollector.ClientsetKey, kubernetes.Interface(clientset))
+
+	filePath := prefixpool.PrefixesFilePathDefault
+
+	err = prefixcollector.NewExcludePrefixServer(filePath,
+		prefixcollector.NewExcludePrefixChan(ctx,
+			prefixcollector.FromEnv(),
+			prefixcollector.FromConfigMap("nsm-config-volume", "default"),
+			prefixcollector.FromKubernetes()))
+
 	if err != nil {
 		span.Logger().Fatalln(err)
 	}
 
 	span.Finish() // exclude main cycle run time from span timing
-	<-c
+	<-ctx.Done()
 }
