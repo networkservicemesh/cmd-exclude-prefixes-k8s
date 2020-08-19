@@ -1,5 +1,7 @@
 // Copyright (c) 2020 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2019 Cisco Systems, Inc.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +18,61 @@
 
 package main
 
-func main() {
+import (
+	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
+	"cmd-exclude-prefixes-k8s/internal/utils"
+	"context"
 
+	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
+
+	"github.com/sirupsen/logrus"
+	"k8s.io/client-go/kubernetes"
+
+	"github.com/networkservicemesh/sdk/pkg/tools/jaeger"
+	"github.com/networkservicemesh/sdk/pkg/tools/signalctx"
+	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
+)
+
+func main() {
+	logrus.Info("Starting prefix service...")
+	utils.PrintAllEnv(logrus.StandardLogger())
+	// Capture signals to cleanup before exiting
+	ctx := signalctx.WithSignals(context.Background())
+
+	closer := jaeger.InitJaeger("prefix-service")
+	defer func() { _ = closer.Close() }()
+
+	span := spanhelper.FromContext(context.Background(), "Start prefix service")
+	defer span.Finish()
+
+	span.Logger().Printf("Building Kubernetes clientset...")
+	config, err := utils.NewClientSetConfig()
+	if err != nil {
+		span.LogError(err)
+		span.Logger().Fatalln("Failed to build Kubernetes clientset: ", err)
+	}
+
+	span.Logger().Infof("Starting prefix service...")
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		span.Logger().Fatalln("Failed to build Kubernetes clientset: ", err)
+	}
+
+	ctx = context.WithValue(ctx, prefixcollector.ClientsetKey, kubernetes.Interface(clientset))
+
+	filePath := prefixpool.PrefixesFilePathDefault
+
+	err = prefixcollector.NewExcludePrefixServer(filePath,
+		prefixcollector.NewExcludePrefixChan(ctx,
+			prefixcollector.FromEnv(),
+			prefixcollector.FromConfigMap("nsm-config-volume", "default"),
+			prefixcollector.FromKubernetes()))
+
+	if err != nil {
+		span.Logger().Fatalln(err)
+	}
+
+	span.Finish() // exclude main cycle run time from span timing
+	<-ctx.Done()
 }
