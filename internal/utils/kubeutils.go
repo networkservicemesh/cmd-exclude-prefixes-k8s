@@ -29,7 +29,10 @@ import (
 )
 
 func NewClientSetConfig() (*rest.Config, error) {
-	path := filepath.Join(os.Getenv("HOME"), ".kube", "config")
-	config, err := clientcmd.BuildConfigFromFlags("", path)
+	configPath := os.Getenv("KUBECONFIG")
+	if configPath == "" {
+		configPath = filepath.Join(os.Getenv("HOME"), ".kube", "config")
+	}
+	config, err := clientcmd.BuildConfigFromFlags("", configPath)
 	return config, err
 }

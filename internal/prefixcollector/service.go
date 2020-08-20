@@ -26,21 +26,19 @@ const (
 	KubeName                     = "kubeadm-config"
 )
 
-func NewExcludePrefixServer(filePath string, notifyCh <-chan []string) error {
+// TODO: create file if doesn't exist
+func StartServer(filePath string, notifyCh <-chan []string) error {
 	go func() {
 		for {
 			select {
 			case prefixes, ok := <-notifyCh:
 				if ok {
 					logrus.Infof("Excluded prefixes changed: %v", prefixes)
-					if len(prefixes) > 0 {
-						// there is unsaved prefixes, save them
-						if updateExcludedPrefixesConfigmap(filePath, prefixes) {
-							prefixes = []string{}
-						}
-					}
+					// there are unsaved prefixes, save them
+					updateExcludedPrefixesConfigmap(filePath, prefixes)
 				}
 			case <-time.After(time.Second):
+				logrus.Info("SEC TIMEOUT")
 			}
 		}
 	}()
@@ -49,7 +47,7 @@ func NewExcludePrefixServer(filePath string, notifyCh <-chan []string) error {
 }
 
 func updateExcludedPrefixesConfigmap(filePath string, prefixes []string) bool {
-	data := buildPrefixesYaml(prefixes)
+	data := BuildPrefixesYaml(prefixes)
 
 	err := ioutil.WriteFile(filePath, data, 0644)
 	if err != nil {
@@ -57,21 +55,6 @@ func updateExcludedPrefixesConfigmap(filePath string, prefixes []string) bool {
 	}
 
 	return true
-}
-
-func buildPrefixesYaml(prefixes []string) []byte {
-	source := struct {
-		Prefixes []string
-	}{}
-	source.Prefixes = prefixes
-
-	bytes, err := yaml.Marshal(source)
-	if err != nil {
-		logrus.Errorf("Can not create marshal prefixes, err: %v", err.Error())
-		return nil
-	}
-
-	return bytes
 }
 
 func FromEnv() func(context context.Context) ([]string, error) {
@@ -130,10 +113,10 @@ func FromKubernetes() func(context context.Context) ([]string, error) {
 	var result []string
 
 	return func(context context.Context) ([]string, error) {
-		clientset := FromContext(context)
+		clientSet := FromContext(context)
 
 		// checks if kubeadm-config exists
-		_, err := clientset.CoreV1().
+		_, err := clientSet.CoreV1().
 			ConfigMaps(KubeNamespace).
 			Get(context, KubeName, metav1.GetOptions{})
 		if err == nil {
@@ -143,7 +126,7 @@ func FromKubernetes() func(context context.Context) ([]string, error) {
 
 		// monitoring goroutine
 		once.Do(func() {
-			ch := monitorSubnets(clientset)
+			ch := monitorSubnets(clientSet)
 
 			go func() {
 				for {

@@ -20,10 +20,12 @@ package prefixcollector
 
 import (
 	"context"
+	"github.com/ghodss/yaml"
+	"github.com/sirupsen/logrus"
 	"time"
 )
 
-func NewExcludePrefixChan(ctx context.Context, options ...func(context.Context) ([]string, error)) <-chan []string {
+func GetExcludePrefixChan(ctx context.Context, options ...func(context.Context) ([]string, error)) <-chan []string {
 	ch := make(chan []string)
 	set := map[string]bool{}
 
@@ -76,4 +78,19 @@ func hasChanges(new []string, old map[string]bool) bool {
 		}
 	}
 	return false
+}
+
+func BuildPrefixesYaml(prefixes []string) []byte {
+	source := struct {
+		Prefixes []string
+	}{}
+	source.Prefixes = prefixes
+
+	bytes, err := yaml.Marshal(source)
+	if err != nil {
+		logrus.Errorf("Can not create marshal prefixes, err: %v", err.Error())
+		return nil
+	}
+
+	return bytes
 }

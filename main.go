@@ -62,9 +62,10 @@ func main() {
 	ctx = context.WithValue(ctx, prefixcollector.ClientsetKey, kubernetes.Interface(clientset))
 
 	filePath := prefixpool.PrefixesFilePathDefault
+	filePath = "D:\\GO\\test\\excluded_prefixes.yaml"
 
-	err = prefixcollector.NewExcludePrefixServer(filePath,
-		prefixcollector.NewExcludePrefixChan(ctx,
+	err = prefixcollector.StartServer(filePath,
+		prefixcollector.GetExcludePrefixChan(ctx,
 			prefixcollector.FromEnv(),
 			prefixcollector.FromConfigMap("nsm-config-volume", "default"),
 			prefixcollector.FromKubernetes()))
