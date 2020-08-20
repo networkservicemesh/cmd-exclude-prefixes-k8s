@@ -24,6 +24,7 @@ func (*dummyResource) GetObjectKind() schema.ObjectKind {
 
 func (*dummyResource) DeepCopyObject() runtime.Object {
 	panic("implement me")
+	//fake.NewSimpleClientset().CoreV1().ConfigMaps("default").Create()
 }
 
 func keyFuncDummy(event watch.Event) (string, error) {

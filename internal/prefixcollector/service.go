@@ -3,14 +3,11 @@ package prefixcollector
 import (
 	"context"
 	"io/ioutil"
-	"sync"
-
-	"github.com/ghodss/yaml"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-
 	"os"
 	"strings"
+	"sync"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -26,7 +23,6 @@ const (
 	KubeName                     = "kubeadm-config"
 )
 
-// TODO: create file if doesn't exist
 func StartServer(filePath string, notifyCh <-chan []string) error {
 	go func() {
 		for {
@@ -38,7 +34,6 @@ func StartServer(filePath string, notifyCh <-chan []string) error {
 					updateExcludedPrefixesConfigmap(filePath, prefixes)
 				}
 			case <-time.After(time.Second):
-				logrus.Info("SEC TIMEOUT")
 			}
 		}
 	}()
@@ -46,15 +41,17 @@ func StartServer(filePath string, notifyCh <-chan []string) error {
 	return nil
 }
 
-func updateExcludedPrefixesConfigmap(filePath string, prefixes []string) bool {
-	data := BuildPrefixesYaml(prefixes)
+func updateExcludedPrefixesConfigmap(filePath string, prefixes []string) {
+	data, err := PrefixesToYaml(prefixes)
+	if err != nil {
+		logrus.Errorf("Can not create marshal prefixes, err: %v", err.Error())
+	}
 
-	err := ioutil.WriteFile(filePath, data, 0644)
+	err = ioutil.WriteFile(filePath, data, 0644)
 	if err != nil {
 		logrus.Fatalf("Unable to write into file: %v", err.Error())
 	}
 
-	return true
 }
 
 func FromEnv() func(context context.Context) ([]string, error) {
@@ -70,7 +67,6 @@ func FromEnv() func(context context.Context) ([]string, error) {
 
 func FromConfigMap(name, namespace string) func(context context.Context) ([]string, error) {
 	return func(context context.Context) ([]string, error) {
-		var prefixes []string
 
 		clientset := FromContext(context)
 
@@ -82,28 +78,15 @@ func FromConfigMap(name, namespace string) func(context context.Context) ([]stri
 			return nil, err
 		}
 
-		source := struct {
-			Prefixes []string
-		}{}
-
-		updatePrefixes := func(bytes []byte) {
-			err := yaml.Unmarshal(bytes, &source)
-			if err != nil {
-				logrus.Errorf("Can not create unmarshal prefixes, err: %v", err.Error())
-				return
-			}
+		bytes := []byte(cm.Data[prefixpool.PrefixesFile])
+		prefixes, err := YamlToPrefixes(bytes)
+		if err != nil {
+			logrus.Errorf("Can not create unmarshal prefixes, err: %v", err.Error())
+			return nil, err
 		}
 
-		bytes := []byte(cm.Data[prefixpool.PrefixesFile])
-		updatePrefixes(bytes)
-		prefixes = source.Prefixes
-
-		return prefixes, nil
+		return prefixes.PrefixesList, nil
 	}
-}
-
-func FromContext(ctx context.Context) *kubernetes.Clientset {
-	return ctx.Value(ClientsetKey).(*kubernetes.Clientset)
 }
 
 func FromKubernetes() func(context context.Context) ([]string, error) {
@@ -116,13 +99,17 @@ func FromKubernetes() func(context context.Context) ([]string, error) {
 		clientSet := FromContext(context)
 
 		// checks if kubeadm-config exists
-		_, err := clientSet.CoreV1().
-			ConfigMaps(KubeNamespace).
-			Get(context, KubeName, metav1.GetOptions{})
-		if err == nil {
-			prefixes, err = getExcludedPrefixesFromKubernetesConfigFile(context)
-			return prefixes, err
+		prefixes, err := getExcludedPrefixesFromKubernetesConfigFile(context)
+		if err != nil {
+			return nil, err
 		}
+		//_, err := clientSet.CoreV1().
+		//	ConfigMaps(KubeNamespace).
+		//	Get(context, KubeName, metav1.GetOptions{})
+		//if err == nil {
+		//	prefixes, err = getExcludedPrefixesFromKubernetesConfigFile(context)
+		//	return prefixes, err
+		//}
 
 		// monitoring goroutine
 		once.Do(func() {

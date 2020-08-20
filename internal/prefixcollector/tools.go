@@ -21,9 +21,14 @@ package prefixcollector
 import (
 	"context"
 	"github.com/ghodss/yaml"
-	"github.com/sirupsen/logrus"
+	"k8s.io/client-go/kubernetes"
 	"time"
 )
+
+type Prefixes struct {
+	//TODO -> Prefixes
+	PrefixesList []string ""
+}
 
 func GetExcludePrefixChan(ctx context.Context, options ...func(context.Context) ([]string, error)) <-chan []string {
 	ch := make(chan []string)
@@ -80,17 +85,27 @@ func hasChanges(new []string, old map[string]bool) bool {
 	return false
 }
 
-func BuildPrefixesYaml(prefixes []string) []byte {
-	source := struct {
-		Prefixes []string
-	}{}
-	source.Prefixes = prefixes
+func FromContext(ctx context.Context) *kubernetes.Clientset {
+	return ctx.Value(ClientsetKey).(*kubernetes.Clientset)
+}
+
+func PrefixesToYaml(prefixesList []string) ([]byte, error) {
+	source := Prefixes{prefixesList}
 
 	bytes, err := yaml.Marshal(source)
 	if err != nil {
-		logrus.Errorf("Can not create marshal prefixes, err: %v", err.Error())
-		return nil
+		return nil, err
 	}
 
-	return bytes
+	return bytes, nil
+}
+
+func YamlToPrefixes(bytes []byte) (Prefixes, error) {
+	destination := Prefixes{}
+	err := yaml.Unmarshal(bytes, &destination)
+	if err != nil {
+		return Prefixes{}, err
+	}
+
+	return destination, nil
 }

@@ -1,8 +1,10 @@
 // Copyright (c) 2020 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2019 Cisco Systems, Inc.
+// Copyright (c) 2019 Cisco and/or its affiliates.
 //
-// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2019 Red Hat Inc. and/or its affiliates.
+//
+// Copyright (c) 2019 VMware, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,11 +66,13 @@ func main() {
 	filePath := prefixpool.PrefixesFilePathDefault
 	filePath = "D:\\GO\\test\\excluded_prefixes.yaml"
 
-	err = prefixcollector.StartServer(filePath,
-		prefixcollector.GetExcludePrefixChan(ctx,
-			prefixcollector.FromEnv(),
-			prefixcollector.FromConfigMap("nsm-config-volume", "default"),
-			prefixcollector.FromKubernetes()))
+	excludePrefixChan := prefixcollector.GetExcludePrefixChan(ctx,
+		prefixcollector.FromEnv(),
+		prefixcollector.FromConfigMap("nsm-config-volume", "default"),
+		prefixcollector.FromKubernetes(),
+	)
+
+	err = prefixcollector.StartServer(filePath, excludePrefixChan)
 
 	if err != nil {
 		span.Logger().Fatalln(err)
@@ -77,3 +81,10 @@ func main() {
 	span.Finish() // exclude main cycle run time from span timing
 	<-ctx.Done()
 }
+
+/*
+	Todo: 1)design or rename
+	2) namespace from env + default if doenst exist
+	3) prefix pool check
+	4) tests
+*/
