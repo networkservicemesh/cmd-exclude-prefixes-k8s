@@ -1,10 +1,6 @@
 // Copyright (c) 2020 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2019 Cisco and/or its affiliates.
-//
-// Copyright (c) 2019 Red Hat Inc. and/or its affiliates.
-//
-// Copyright (c) 2019 VMware, Inc.
+// SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,17 +62,12 @@ func main() {
 	filePath := prefixpool.PrefixesFilePathDefault
 	filePath = "D:\\GO\\test\\excluded_prefixes.yaml"
 
-	excludePrefixChan := prefixcollector.GetExcludePrefixChan(ctx,
-		prefixcollector.FromEnv(),
-		prefixcollector.FromConfigMap("nsm-config-volume", "default"),
-		prefixcollector.FromKubernetes(),
-	)
-
-	err = prefixcollector.StartServer(filePath, excludePrefixChan)
-
+	excludePrefixService := prefixcollector.NewPrefixCollectorService(filePath)
+	channels, err := prefixcollector.GetDefaultPrefixWatchers(ctx)
 	if err != nil {
-		span.Logger().Fatalln(err)
+		span.Logger().Fatalln("Failed to build default channels ", err)
 	}
+	excludePrefixService.Start(prefixcollector.MergeChannels(channels...))
 
 	span.Finish() // exclude main cycle run time from span timing
 	<-ctx.Done()

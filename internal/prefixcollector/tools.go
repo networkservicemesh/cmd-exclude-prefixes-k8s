@@ -1,7 +1,5 @@
 // Copyright (c) 2020 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2019 Cisco Systems, Inc.
-//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,12 +20,12 @@ import (
 	"context"
 	"github.com/ghodss/yaml"
 	"k8s.io/client-go/kubernetes"
+	"sync"
 	"time"
 )
 
 type Prefixes struct {
-	//TODO -> Prefixes
-	PrefixesList []string ""
+	PrefixesList []string `json:"Prefixes"`
 }
 
 func GetExcludePrefixChan(ctx context.Context, options ...func(context.Context) ([]string, error)) <-chan []string {
@@ -57,6 +55,28 @@ func GetExcludePrefixChan(ctx context.Context, options ...func(context.Context) 
 	}()
 
 	return ch
+}
+
+func MergeChannels(channels ...<-chan []string) <-chan []string {
+	out := make(chan []string)
+	var wg sync.WaitGroup
+	wg.Add(len(channels))
+	output := func(c <-chan []string) {
+		for n := range c {
+			out <- n
+		}
+		wg.Done()
+	}
+
+	for _, c := range channels {
+		go output(c)
+	}
+
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+	return out
 }
 
 func deleteDuplicate(prefixes []string) []string {

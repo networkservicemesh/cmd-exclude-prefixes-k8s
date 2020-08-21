@@ -1,7 +1,22 @@
-package prefix_sources
+// Copyright (c) 2020 Doc.ai and/or its affiliates.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package prefixcollector
 
 import (
-	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"context"
 	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 	"github.com/sirupsen/logrus"
@@ -14,26 +29,17 @@ type ConfigMapPrefixSource struct {
 	configMapName      string
 	configMapNameSpace string
 	configMapInterface v1.ConfigMapInterface
-	prefixChan         chan []string
-	errorChan          chan error
+	PrefixChan         chan []string
 }
 
 func NewConfigMapPrefixSource(context context.Context, name, namespace string) (*ConfigMapPrefixSource, error) {
-	clientSet := prefixcollector.FromContext(context)
+	clientSet := FromContext(context)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(namespace)
-
-	// check if config map with such name exists
-	_, err := configMapInterface.Get(context, name, metav1.GetOptions{})
-	if err != nil {
-		logrus.Errorf("Failed to get ConfigMap '%s/%s': %v", namespace, name, err)
-		return nil, err
-	}
 	cmps := ConfigMapPrefixSource{
 		name,
 		namespace,
 		configMapInterface,
 		make(chan []string, 1),
-		make(chan error),
 	}
 
 	go cmps.watchConfigMap(context)
@@ -42,32 +48,28 @@ func NewConfigMapPrefixSource(context context.Context, name, namespace string) (
 }
 
 func (cmps *ConfigMapPrefixSource) ResultChan() <-chan []string {
-	return cmps.prefixChan
+	return cmps.PrefixChan
 }
 
-func (cmps *ConfigMapPrefixSource) ErrorChan() <-chan error {
-	return cmps.errorChan
+func (cmps *ConfigMapPrefixSource) Stop() {
+	close(cmps.PrefixChan)
 }
 
 func (cmps *ConfigMapPrefixSource) watchConfigMap(context context.Context) {
-	//prefixesList := make([]string, 5)
 	for {
 		cm, err := cmps.configMapInterface.Get(context, cmps.configMapName, metav1.GetOptions{})
 		if err != nil {
 			logrus.Errorf("Failed to get ConfigMap '%s/%s': %v", cmps.configMapNameSpace, cmps.configMapName, err)
-			cmps.errorChan <- err
 			return
 		}
 
 		bytes := []byte(cm.Data[prefixpool.PrefixesFile])
-		prefixes, err := prefixcollector.YamlToPrefixes(bytes)
+		prefixes, err := YamlToPrefixes(bytes)
 		if err != nil {
-			logrus.Errorf("Can not create unmarshal prefixes, err: %v", err.Error())
-			cmps.errorChan <- err
+			logrus.Errorf("Can not unmarshal prefixes, err: %v", err.Error())
 			return
 		}
-		// if prefixes.PrefixesList != prefixesList
-		cmps.prefixChan <- prefixes.PrefixesList
+		cmps.PrefixChan <- prefixes.PrefixesList
 		<-time.After(time.Second * 10)
 	}
 }
