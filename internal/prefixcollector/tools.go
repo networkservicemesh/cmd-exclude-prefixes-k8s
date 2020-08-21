@@ -57,11 +57,19 @@ func GetExcludePrefixChan(ctx context.Context, options ...func(context.Context) 
 	return ch
 }
 
-func MergeChannels(channels ...<-chan []string) <-chan []string {
-	out := make(chan []string)
+func GetNotifyChannel(sources ...ExcludePrefixSource) <-chan struct{} {
+	channels := make([]<-chan struct{}, len(sources))
+	for _, v := range sources {
+		channels = append(channels, v.GetNotifyChannel())
+	}
+	return mergeNotifyChannels(channels...)
+}
+
+func mergeNotifyChannels(channels ...<-chan struct{}) <-chan struct{} {
+	out := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(len(channels))
-	output := func(c <-chan []string) {
+	output := func(c <-chan struct{}) {
 		for n := range c {
 			out <- n
 		}

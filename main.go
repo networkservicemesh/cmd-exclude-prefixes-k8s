@@ -62,12 +62,13 @@ func main() {
 	filePath := prefixpool.PrefixesFilePathDefault
 	filePath = "D:\\GO\\test\\excluded_prefixes.yaml"
 
-	excludePrefixService := prefixcollector.NewPrefixCollectorService(filePath)
-	channels, err := prefixcollector.GetDefaultPrefixWatchers(ctx)
+	excludePrefixService, err := prefixcollector.NewPrefixCollectorService(ctx, filePath)
 	if err != nil {
-		span.Logger().Fatalln("Failed to build default channels ", err)
+		logrus.Error("Error creating excludePrefixService")
+		return
 	}
-	excludePrefixService.Start(prefixcollector.MergeChannels(channels...))
+	defaultPrefixSources := prefixcollector.GetDefaultPrefixSources(ctx)
+	excludePrefixService.Start(prefixcollector.GetNotifyChannel(defaultPrefixSources...))
 
 	span.Finish() // exclude main cycle run time from span timing
 	<-ctx.Done()

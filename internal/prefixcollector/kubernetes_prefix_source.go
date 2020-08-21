@@ -17,85 +17,80 @@
 package prefixcollector
 
 import (
+	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta2"
-	"strings"
-)
-
-const (
-	KubeNamespace = "kube-system"
-	KubeName      = "kubeadm-config"
 )
 
 type KubernetesPrefixSource struct {
-	PrefixChan chan []string
-	errorChan  chan error
+	notifyChan chan struct{}
+	prefixes   utils.SynchronizedPrefixList
 }
 
-func (kps *KubernetesPrefixSource) ErrorChan() <-chan error {
-	return kps.errorChan
+func (kps *KubernetesPrefixSource) GetNotifyChannel() <-chan struct{} {
+	return kps.notifyChan
 }
 
-func (kps *KubernetesPrefixSource) ResultChan() <-chan []string {
-	return kps.PrefixChan
+func (kps *KubernetesPrefixSource) GetPrefixes() []string {
+	return kps.prefixes.GetList()
 }
 
 func NewKubernetesPrefixSource(context context.Context) (*KubernetesPrefixSource, error) {
 	kps := &KubernetesPrefixSource{
-		make(chan []string, 1),
-		make(chan error),
-	}
-	kubeAdmPrefixes, err := getExcludedPrefixesFromConfigMap(context)
-	if err == nil {
-		kps.PrefixChan <- kubeAdmPrefixes
-		return kps, nil
+		make(chan struct{}, 1),
+		utils.NewSynchronizedPrefixListImpl(),
 	}
 
 	go kps.watchSubnets(context)
 	return kps, nil
 }
 
-func getExcludedPrefixesFromConfigMap(context context.Context) ([]string, error) {
-	clientSet := FromContext(context)
-	kubeadmConfig, err := clientSet.CoreV1().ConfigMaps(KubeNamespace).
-		Get(context, KubeName, metav1.GetOptions{})
-	if err != nil {
-		logrus.Error(err)
-		return nil, err
-	}
-
-	clusterConfiguration := &v1beta2.ClusterConfiguration{}
-	err = yaml.NewYAMLOrJSONDecoder(strings.NewReader(kubeadmConfig.Data["ClusterConfiguration"]), 4096).
-		Decode(clusterConfiguration)
-	if err != nil {
-		return nil, err
-	}
-
-	podSubnet := clusterConfiguration.Networking.PodSubnet
-	serviceSubnet := clusterConfiguration.Networking.ServiceSubnet
-
-	if podSubnet == "" {
-		return nil, errors.New("ClusterConfiguration.Networking.PodSubnet is empty")
-	}
-	if serviceSubnet == "" {
-		return nil, errors.New("ClusterConfiguration.Networking.ServiceSubnet is empty")
-	}
-
-	return []string{
-		podSubnet,
-		serviceSubnet,
-	}, nil
-}
-
 func (kps *KubernetesPrefixSource) watchSubnets(context context.Context) {
 	clientSet := FromContext(context)
 	for {
-		go MonitorReservedSubnets(kps.PrefixChan, kps.errorChan, clientSet)
-		err := <-kps.errorChan
-		logrus.Error(err)
+		pw, err := WatchPodCIDR(clientSet)
+		if err != nil {
+			logrus.Error(err)
+			continue
+		}
+		defer pw.Stop()
+
+		sw, err := WatchServiceIpAddr(clientSet)
+		if err != nil {
+			logrus.Error(err)
+			continue
+		}
+		defer sw.Stop()
+
+		var podSubnet, serviceSubnet string
+		for {
+			select {
+			case subnet, ok := <-pw.ResultChan():
+				if !ok {
+					return
+				}
+				podSubnet = subnet.String()
+			case subnet, ok := <-sw.ResultChan():
+				if !ok {
+					return
+				}
+				serviceSubnet = subnet.String()
+			}
+			prefixes := getPrefixes(podSubnet, serviceSubnet)
+			kps.prefixes.SetList(prefixes)
+			kps.notifyChan <- struct{}{}
+		}
 	}
+}
+
+func getPrefixes(podSubnet, serviceSubnet string) []string {
+	var prefixes []string
+	if len(podSubnet) > 0 {
+		prefixes = append(prefixes, podSubnet)
+	}
+	if len(serviceSubnet) > 0 {
+		prefixes = append(prefixes, serviceSubnet)
+	}
+
+	return prefixes
 }

@@ -27,7 +27,7 @@ import (
 
 type contextKeyType string
 
-type PrefixSource interface {
+type ExcludePrefixSource interface {
 	GetNotifyChannel() <-chan struct{}
 	GetPrefixes() []string
 }
@@ -38,68 +38,78 @@ const (
 )
 
 type PrefixCollectorService struct {
-	prefixes []string
-	filePath string
+	prefixPool *prefixpool.PrefixPool
+	filePath   string
+	sources    []ExcludePrefixSource
 }
 
 // todo pattern option - массив опций
-func NewPrefixCollectorService(filePath string) *PrefixCollectorService {
-	return &PrefixCollectorService{
-		getPrefixesFromEnv(),
-		filePath,
+func NewPrefixCollectorService(context context.Context, filePath string) (*PrefixCollectorService, error) {
+	prefixPool, err := prefixpool.NewPrefixPool(getPrefixesFromEnv()...)
+	if err != nil {
+		return nil, err
 	}
+	return &PrefixCollectorService{
+		prefixPool,
+		filePath,
+		GetDefaultPrefixSources(context),
+	}, nil
 }
 
-func GetDefaultPrefixWatchers(context context.Context) ([]<-chan []string, error) {
+func GetDefaultPrefixSources(context context.Context) []ExcludePrefixSource {
+	// TODO
+	sources := make([]ExcludePrefixSource, 0, 5)
 	kubernetesWatcher, err := NewKubernetesPrefixSource(context)
-	if err != nil {
-		logrus.Error("Error creating KubernetesPrefixSource")
-		return nil, err
+	if err == nil {
+		sources = append(sources, kubernetesWatcher)
 	}
 
 	configMapWatcher, err := NewConfigMapPrefixSource(context, "nsm-config-volume", "default")
-	if err != nil {
-		logrus.Error("Error creating ConfigMapPrefixSource")
-		return nil, err
+	if err == nil {
+		sources = append(sources, configMapWatcher)
 	}
 
-	return []<-chan []string{
-		kubernetesWatcher.ResultChan(),
-		configMapWatcher.ResultChan(),
-	}, nil
+	kubeAdmPrefixSource, err := NewKubeAdmPrefixSource(context)
+	if err == nil {
+		sources = append(sources, kubeAdmPrefixSource)
+	}
+
+	return sources
 }
 
 func getPrefixesFromEnv() []string {
 	var envPrefixes []string
 	excludedPrefixesEnv, ok := os.LookupEnv(excludedPrefixesEnv)
 	if ok {
-		envPrefixes = strings.Split(excludedPrefixesEnv, ",")
-		prefixes := make([]string, len(envPrefixes))
-		copy(prefixes, envPrefixes)
-		return prefixes
+		return strings.Split(excludedPrefixesEnv, ",")
 	}
 
-	return make([]string, 1)
+	return envPrefixes
 }
 
 func (pcs *PrefixCollectorService) Start(channel <-chan struct{}) {
 	go func() {
-		for _ := range channel {
-			updateExcludedPrefixesConfigmap(pcs.filePath, prefixes)
+		for _ = range channel {
+			pcs.updateExcludedPrefixesConfigmap(pcs.filePath)
 		}
 	}()
 }
 
-func updateExcludedPrefixesConfigmap(filePath string, prefixSources []PrefixSource) {
-	var prefixPool prefixpool.PrefixPool
+func (pcs *PrefixCollectorService) updateExcludedPrefixesConfigmap(filePath string) {
 	var prefixes []string
 	var err error
 
-	for _, v := range prefixSources {
-		prefixes, err = prefixPool.ExcludePrefixes(v.GetPrefixes())
+	for _, v := range pcs.sources {
+		tmp := v.GetPrefixes()
+		if len(tmp) == 0 {
+			logrus.Info("EMPTY")
+			continue
+		}
+		_ = pcs.prefixPool.ReleaseExcludedPrefixes(v.GetPrefixes())
+		prefixes, err = pcs.prefixPool.ExcludePrefixes(v.GetPrefixes())
 		if err != nil {
 			logrus.Errorf("", err)
-			return
+			//return
 		}
 	}
 

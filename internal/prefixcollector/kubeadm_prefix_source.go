@@ -15,3 +15,83 @@
 // limitations under the License.
 
 package prefixcollector
+
+import (
+	"cmd-exclude-prefixes-k8s/internal/utils"
+	"context"
+	"github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/yaml"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta2"
+	"strings"
+)
+
+const (
+	KubeNamespace = "kube-system"
+	KubeName      = "kubeadm-config"
+)
+
+type KubeAdmPrefixSource struct {
+	configMapInterface v1.ConfigMapInterface
+	prefixes           utils.SynchronizedPrefixList
+	notifyChan         chan struct{}
+}
+
+func (kaps *KubeAdmPrefixSource) GetNotifyChannel() <-chan struct{} {
+	return kaps.notifyChan
+}
+
+func (kaps *KubeAdmPrefixSource) GetPrefixes() []string {
+	return kaps.prefixes.GetList()
+}
+
+func NewKubeAdmPrefixSource(context context.Context) (*KubeAdmPrefixSource, error) {
+	clientSet := FromContext(context)
+	configMapInterface := clientSet.CoreV1().ConfigMaps(KubeNamespace)
+	kaps := KubeAdmPrefixSource{
+		configMapInterface,
+		utils.NewSynchronizedPrefixListImpl(),
+		make(chan struct{}, 1),
+	}
+
+	go kaps.watchKubeAdmConfigMap(context)
+
+	return &kaps, nil
+}
+
+func (cmps *KubeAdmPrefixSource) watchKubeAdmConfigMap(context context.Context) {
+	for {
+		clientSet := FromContext(context)
+		kubeadmConfig, err := clientSet.CoreV1().ConfigMaps(KubeNamespace).
+			Get(context, KubeName, metav1.GetOptions{})
+		if err != nil {
+			logrus.Error(err)
+			continue
+		}
+
+		clusterConfiguration := &v1beta2.ClusterConfiguration{}
+		err = yaml.NewYAMLOrJSONDecoder(strings.NewReader(kubeadmConfig.Data["ClusterConfiguration"]), 4096).
+			Decode(clusterConfiguration)
+		if err != nil {
+			logrus.Error(err)
+			continue
+		}
+
+		podSubnet := clusterConfiguration.Networking.PodSubnet
+		serviceSubnet := clusterConfiguration.Networking.ServiceSubnet
+
+		if podSubnet == "" {
+			logrus.Error("ClusterConfiguration.Networking.PodSubnet is empty")
+		}
+		if serviceSubnet == "" {
+			logrus.Error("ClusterConfiguration.Networking.ServiceSubnet is empty")
+		}
+
+		cmps.prefixes.SetList([]string{
+			podSubnet,
+			serviceSubnet,
+		})
+		cmps.notifyChan <- struct{}{}
+	}
+}

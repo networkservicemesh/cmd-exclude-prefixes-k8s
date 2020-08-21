@@ -17,6 +17,7 @@
 package prefixcollector
 
 import (
+	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 	"github.com/sirupsen/logrus"
@@ -29,7 +30,8 @@ type ConfigMapPrefixSource struct {
 	configMapName      string
 	configMapNameSpace string
 	configMapInterface v1.ConfigMapInterface
-	PrefixChan         chan []string
+	prefixes           utils.SynchronizedPrefixList
+	notifyChan         chan struct{}
 }
 
 func NewConfigMapPrefixSource(context context.Context, name, namespace string) (*ConfigMapPrefixSource, error) {
@@ -39,7 +41,8 @@ func NewConfigMapPrefixSource(context context.Context, name, namespace string) (
 		name,
 		namespace,
 		configMapInterface,
-		make(chan []string, 1),
+		utils.NewSynchronizedPrefixListImpl(),
+		make(chan struct{}, 1),
 	}
 
 	go cmps.watchConfigMap(context)
@@ -47,12 +50,12 @@ func NewConfigMapPrefixSource(context context.Context, name, namespace string) (
 	return &cmps, nil
 }
 
-func (cmps *ConfigMapPrefixSource) ResultChan() <-chan []string {
-	return cmps.PrefixChan
+func (cmps *ConfigMapPrefixSource) GetNotifyChannel() <-chan struct{} {
+	return cmps.notifyChan
 }
 
-func (cmps *ConfigMapPrefixSource) Stop() {
-	close(cmps.PrefixChan)
+func (cmps *ConfigMapPrefixSource) GetPrefixes() []string {
+	return cmps.prefixes.GetList()
 }
 
 func (cmps *ConfigMapPrefixSource) watchConfigMap(context context.Context) {
@@ -69,7 +72,8 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap(context context.Context) {
 			logrus.Errorf("Can not unmarshal prefixes, err: %v", err.Error())
 			return
 		}
-		cmps.PrefixChan <- prefixes.PrefixesList
+		cmps.prefixes.SetList(prefixes.PrefixesList)
+		cmps.notifyChan <- struct{}{}
 		<-time.After(time.Second * 10)
 	}
 }
