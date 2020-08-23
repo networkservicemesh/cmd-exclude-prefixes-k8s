@@ -89,31 +89,29 @@ func getPrefixesFromEnv() []string {
 
 func (pcs *PrefixCollectorService) Start(channel <-chan struct{}) {
 	go func() {
-		for _ = range channel {
+		for range channel {
 			pcs.updateExcludedPrefixesConfigmap(pcs.filePath)
 		}
 	}()
 }
 
 func (pcs *PrefixCollectorService) updateExcludedPrefixesConfigmap(filePath string) {
-	var prefixes []string
+	excludePrefixPool, _ := NewExcludePrefixPool()
 	var err error
 
 	for _, v := range pcs.sources {
-		tmp := v.GetPrefixes()
-		if len(tmp) == 0 {
-			logrus.Info("EMPTY")
+		sourcePrefixes := v.GetPrefixes()
+		if len(sourcePrefixes) == 0 {
 			continue
 		}
-		_ = pcs.prefixPool.ReleaseExcludedPrefixes(v.GetPrefixes())
-		prefixes, err = pcs.prefixPool.ExcludePrefixes(v.GetPrefixes())
-		if err != nil {
-			logrus.Errorf("", err)
-			//return
+
+		if err = excludePrefixPool.Add(v.GetPrefixes()); err != nil {
+			logrus.Error(err)
+			return
 		}
 	}
 
-	data, err := PrefixesToYaml(prefixes)
+	data, err := PrefixesToYaml(excludePrefixPool.GetPrefixes())
 	if err != nil {
 		logrus.Errorf("Can not create marshal prefixes, err: %v", err.Error())
 	}
