@@ -42,32 +42,32 @@ func NewExcludePrefixPool(prefixes ...string) (*ExcludePrefixPool, error) {
 func (impl *ExcludePrefixPool) Add(prefixesToAdd []string) error {
 	impl.lock.Lock()
 	newPrefixes := make([]string, 0, len(impl.prefixes)+len(prefixesToAdd))
-	prefixesToRemove := make(map[string]struct{})
+	prefixesToRemove := make(map[int]struct{})
 
-	for _, prefixToAdd := range prefixesToAdd {
+	for _, newPrefix := range prefixesToAdd {
 		intersected := false
-		_, prefixToAddSubnet, err := net.ParseCIDR(prefixToAdd)
+		_, newPrefixSubnet, err := net.ParseCIDR(newPrefix)
 		if err != nil {
 			logrus.Errorf("Wrong CIDR: %v", prefixesToAdd)
 			return err
 		}
-		for _, prefix := range impl.prefixes {
+		for prefixIndex, prefix := range impl.prefixes {
 			_, prefixSubnet, _ := net.ParseCIDR(prefix)
-			if intersect, firstIsWider := intersect(prefixSubnet, prefixToAddSubnet); intersect == true {
+			if intersect, firstIsWider := intersect(newPrefixSubnet, prefixSubnet); intersect == true {
 				intersected = true
-				if !firstIsWider {
-					newPrefixes = append(newPrefixes, prefixToAdd)
-					prefixesToRemove[prefix] = struct{}{}
+				if firstIsWider {
+					newPrefixes = append(newPrefixes, newPrefix)
+					prefixesToRemove[prefixIndex] = struct{}{}
 				}
 			}
 		}
 		if !intersected {
-			newPrefixes = append(newPrefixes, prefixToAdd)
+			newPrefixes = append(newPrefixes, newPrefix)
 		}
 	}
 
-	for _, prefix := range impl.prefixes {
-		if _, ok := prefixesToRemove[prefix]; ok {
+	for i, prefix := range impl.prefixes {
+		if _, ok := prefixesToRemove[i]; ok {
 			continue
 		}
 

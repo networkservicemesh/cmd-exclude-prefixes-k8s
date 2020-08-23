@@ -35,14 +35,14 @@ func (kps *KubernetesPrefixSource) GetPrefixes() []string {
 	return kps.prefixes.GetList()
 }
 
-func NewKubernetesPrefixSource(context context.Context) (*KubernetesPrefixSource, error) {
+func NewKubernetesPrefixSource(context context.Context) *KubernetesPrefixSource {
 	kps := &KubernetesPrefixSource{
 		make(chan struct{}, 1),
 		utils.NewSynchronizedPrefixListImpl(),
 	}
 
 	go kps.watchSubnets(context)
-	return kps, nil
+	return kps
 }
 
 func (kps *KubernetesPrefixSource) watchSubnets(context context.Context) {
@@ -76,9 +76,10 @@ func (kps *KubernetesPrefixSource) watchSubnets(context context.Context) {
 				}
 				serviceSubnet = subnet.String()
 			}
+
 			prefixes := getPrefixes(podSubnet, serviceSubnet)
 			kps.prefixes.SetList(prefixes)
-			kps.notifyChan <- struct{}{}
+			notify(kps.notifyChan)
 		}
 	}
 }

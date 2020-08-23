@@ -64,7 +64,7 @@ func main() {
 
 	excludePrefixService, err := prefixcollector.NewPrefixCollectorService(ctx, filePath)
 	if err != nil {
-		logrus.Error("Error creating excludePrefixService")
+		logrus.Errorf("Error creating excludePrefixService: %v", err)
 		return
 	}
 	defaultPrefixSources := prefixcollector.GetDefaultPrefixSources(ctx)

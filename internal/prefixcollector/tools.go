@@ -21,40 +21,10 @@ import (
 	"github.com/ghodss/yaml"
 	"k8s.io/client-go/kubernetes"
 	"sync"
-	"time"
 )
 
 type Prefixes struct {
 	PrefixesList []string `json:"Prefixes"`
-}
-
-func GetExcludePrefixChan(ctx context.Context, options ...func(context.Context) ([]string, error)) <-chan []string {
-	ch := make(chan []string)
-	set := map[string]bool{}
-
-	go func() {
-		for {
-			var prefixes []string
-
-			for _, o := range options {
-				if newPrefixes, err := o(ctx); err == nil {
-					prefixes = append(prefixes, newPrefixes...)
-				}
-			}
-
-			prefixes = deleteDuplicate(prefixes)
-			if hasChanges(prefixes, set) {
-				set = make(map[string]bool)
-				for _, v := range prefixes {
-					set[v] = true
-				}
-				ch <- prefixes
-			}
-			<-time.After(time.Second)
-		}
-	}()
-
-	return ch
 }
 
 func GetNotifyChannel(sources ...ExcludePrefixSource) <-chan struct{} {
@@ -87,32 +57,6 @@ func mergeNotifyChannels(channels ...<-chan struct{}) <-chan struct{} {
 	return out
 }
 
-func deleteDuplicate(prefixes []string) []string {
-	encountered := map[string]bool{}
-	result := []string{}
-
-	for index := range prefixes {
-		if encountered[prefixes[index]] {
-			continue
-		}
-		encountered[prefixes[index]] = true
-		result = append(result, prefixes[index])
-	}
-	return result
-}
-
-func hasChanges(new []string, old map[string]bool) bool {
-	if len(new) != len(old) {
-		return true
-	}
-	for _, v := range new {
-		if old[v] == false {
-			return true
-		}
-	}
-	return false
-}
-
 func FromContext(ctx context.Context) *kubernetes.Clientset {
 	return ctx.Value(ClientsetKey).(*kubernetes.Clientset)
 }
@@ -136,4 +80,8 @@ func YamlToPrefixes(bytes []byte) (Prefixes, error) {
 	}
 
 	return destination, nil
+}
+
+func notify(notifyChan chan<- struct{}) {
+	notifyChan <- struct{}{}
 }

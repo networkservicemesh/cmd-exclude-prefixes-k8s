@@ -34,7 +34,7 @@ type ConfigMapPrefixSource struct {
 	notifyChan         chan struct{}
 }
 
-func NewConfigMapPrefixSource(context context.Context, name, namespace string) (*ConfigMapPrefixSource, error) {
+func NewConfigMapPrefixSource(context context.Context, name, namespace string) *ConfigMapPrefixSource {
 	clientSet := FromContext(context)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(namespace)
 	cmps := ConfigMapPrefixSource{
@@ -47,7 +47,7 @@ func NewConfigMapPrefixSource(context context.Context, name, namespace string) (
 
 	go cmps.watchConfigMap(context)
 
-	return &cmps, nil
+	return &cmps
 }
 
 func (cmps *ConfigMapPrefixSource) GetNotifyChannel() <-chan struct{} {
@@ -73,7 +73,7 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap(context context.Context) {
 			return
 		}
 		cmps.prefixes.SetList(prefixes.PrefixesList)
-		cmps.notifyChan <- struct{}{}
+		notify(cmps.notifyChan)
 		<-time.After(time.Second * 10)
 	}
 }

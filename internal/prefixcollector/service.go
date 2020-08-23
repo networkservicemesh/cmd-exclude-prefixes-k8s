@@ -59,20 +59,14 @@ func NewPrefixCollectorService(context context.Context, filePath string) (*Prefi
 func GetDefaultPrefixSources(context context.Context) []ExcludePrefixSource {
 	// TODO
 	sources := make([]ExcludePrefixSource, 0, 5)
-	kubernetesWatcher, err := NewKubernetesPrefixSource(context)
-	if err == nil {
-		sources = append(sources, kubernetesWatcher)
-	}
+	kubernetesWatcher := NewKubernetesPrefixSource(context)
+	sources = append(sources, kubernetesWatcher)
 
-	configMapWatcher, err := NewConfigMapPrefixSource(context, "nsm-config-volume", "default")
-	if err == nil {
-		sources = append(sources, configMapWatcher)
-	}
+	configMapWatcher := NewConfigMapPrefixSource(context, "nsm-config-volume", "default")
+	sources = append(sources, configMapWatcher)
 
-	kubeAdmPrefixSource, err := NewKubeAdmPrefixSource(context)
-	if err == nil {
-		sources = append(sources, kubeAdmPrefixSource)
-	}
+	kubeAdmPrefixSource := NewKubeAdmPrefixSource(context)
+	sources = append(sources, kubeAdmPrefixSource)
 
 	return sources
 }
