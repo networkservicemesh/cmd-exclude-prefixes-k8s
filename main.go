@@ -22,7 +22,6 @@ import (
 	"context"
 	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 
-	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/jaeger"
@@ -31,8 +30,6 @@ import (
 )
 
 func main() {
-	logrus.Info("Starting prefix service...")
-	utils.PrintAllEnv(logrus.StandardLogger())
 	// Capture signals to cleanup before exiting
 	ctx := signalctx.WithSignals(context.Background())
 
