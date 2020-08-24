@@ -49,27 +49,27 @@ func WithConfigMapSource() ExcludePrefixCollectorOption {
 	if namespace == "" {
 		namespace = defaultConfigMapNamespace
 	}
-	return func(collector *ExcludePrefixCollector, context context.Context) {
-		configMapWatcher := NewConfigMapPrefixSource(context, "nsm-config-volume", namespace)
+	return func(collector *ExcludePrefixCollector, ctx context.Context) {
+		configMapWatcher := NewConfigMapPrefixSource(ctx, "nsm-config-volume", namespace)
 		collector.sources = append(collector.sources, configMapWatcher)
 	}
 }
 
 func WithKubeadmConfigSource() ExcludePrefixCollectorOption {
-	return func(collector *ExcludePrefixCollector, context context.Context) {
-		kubeAdmPrefixSource := NewKubeAdmPrefixSource(context)
+	return func(collector *ExcludePrefixCollector, ctx context.Context) {
+		kubeAdmPrefixSource := NewKubeAdmPrefixSource(ctx)
 		collector.sources = append(collector.sources, kubeAdmPrefixSource)
 	}
 }
 
 func WithKubernetesSource() ExcludePrefixCollectorOption {
-	return func(collector *ExcludePrefixCollector, context context.Context) {
-		kubernetesSource := NewKubernetesPrefixSource(context)
+	return func(collector *ExcludePrefixCollector, ctx context.Context) {
+		kubernetesSource := NewKubernetesPrefixSource(ctx)
 		collector.sources = append(collector.sources, kubernetesSource)
 	}
 }
 
-func NewExcludePrefixCollector(filePath string, context context.Context,
+func NewExcludePrefixCollector(filePath string, ctx context.Context,
 	options ...ExcludePrefixCollectorOption) *ExcludePrefixCollector {
 	collector := &ExcludePrefixCollector{
 		getPrefixesFromEnv(),
@@ -78,7 +78,7 @@ func NewExcludePrefixCollector(filePath string, context context.Context,
 	}
 
 	for _, option := range options {
-		option(collector, context)
+		option(collector, ctx)
 	}
 
 	return collector

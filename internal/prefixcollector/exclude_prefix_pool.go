@@ -53,7 +53,7 @@ func (impl *ExcludePrefixPool) Add(prefixesToAdd []string) error {
 		}
 		for prefixIndex, prefix := range impl.prefixes {
 			_, prefixSubnet, _ := net.ParseCIDR(prefix)
-			if intersect, firstIsWider := intersect(newPrefixSubnet, prefixSubnet); intersect == true {
+			if intersect, firstIsWider := intersect(newPrefixSubnet, prefixSubnet); intersect {
 				intersected = true
 				if firstIsWider {
 					newPrefixes = append(newPrefixes, newPrefix)

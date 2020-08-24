@@ -34,8 +34,8 @@ type ConfigMapPrefixSource struct {
 	notifyChan         chan struct{}
 }
 
-func NewConfigMapPrefixSource(context context.Context, name, namespace string) *ConfigMapPrefixSource {
-	clientSet := utils.FromContext(context)
+func NewConfigMapPrefixSource(ctx context.Context, name, namespace string) *ConfigMapPrefixSource {
+	clientSet := utils.FromContext(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(namespace)
 	cmps := ConfigMapPrefixSource{
 		name,
@@ -45,7 +45,7 @@ func NewConfigMapPrefixSource(context context.Context, name, namespace string) *
 		make(chan struct{}, 1),
 	}
 
-	go cmps.watchConfigMap(context)
+	go cmps.watchConfigMap(ctx)
 
 	return &cmps
 }
@@ -58,9 +58,9 @@ func (cmps *ConfigMapPrefixSource) GetPrefixes() []string {
 	return cmps.prefixes.GetList()
 }
 
-func (cmps *ConfigMapPrefixSource) watchConfigMap(context context.Context) {
+func (cmps *ConfigMapPrefixSource) watchConfigMap(ctx context.Context) {
 	for {
-		cm, err := cmps.configMapInterface.Get(context, cmps.configMapName, metav1.GetOptions{})
+		cm, err := cmps.configMapInterface.Get(ctx, cmps.configMapName, metav1.GetOptions{})
 		if err != nil {
 			logrus.Errorf("Failed to get ConfigMap '%s/%s': %v", cmps.configMapNameSpace, cmps.configMapName, err)
 			return

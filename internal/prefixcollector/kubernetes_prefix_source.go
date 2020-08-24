@@ -35,13 +35,13 @@ func (kps *KubernetesPrefixSource) GetPrefixes() []string {
 	return kps.prefixes.GetList()
 }
 
-func NewKubernetesPrefixSource(context context.Context) *KubernetesPrefixSource {
+func NewKubernetesPrefixSource(ctx context.Context) *KubernetesPrefixSource {
 	kps := &KubernetesPrefixSource{
 		make(chan struct{}, 1),
 		utils.NewSynchronizedPrefixListImpl(),
 	}
 
-	go kps.watchSubnets(context)
+	go kps.watchSubnets(ctx)
 	return kps
 }
 

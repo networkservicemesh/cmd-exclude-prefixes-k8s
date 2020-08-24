@@ -46,8 +46,8 @@ func (kaps *KubeAdmPrefixSource) GetPrefixes() []string {
 	return kaps.prefixes.GetList()
 }
 
-func NewKubeAdmPrefixSource(context context.Context) *KubeAdmPrefixSource {
-	clientSet := utils.FromContext(context)
+func NewKubeAdmPrefixSource(ctx context.Context) *KubeAdmPrefixSource {
+	clientSet := utils.FromContext(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(KubeNamespace)
 	kaps := KubeAdmPrefixSource{
 		configMapInterface,
@@ -55,16 +55,16 @@ func NewKubeAdmPrefixSource(context context.Context) *KubeAdmPrefixSource {
 		make(chan struct{}, 1),
 	}
 
-	go kaps.watchKubeAdmConfigMap(context)
+	go kaps.watchKubeAdmConfigMap(ctx)
 
 	return &kaps
 }
 
-func (cmps *KubeAdmPrefixSource) watchKubeAdmConfigMap(context context.Context) {
+func (cmps *KubeAdmPrefixSource) watchKubeAdmConfigMap(ctx context.Context) {
 	for {
-		clientSet := utils.FromContext(context)
+		clientSet := utils.FromContext(ctx)
 		kubeadmConfig, err := clientSet.CoreV1().ConfigMaps(KubeNamespace).
-			Get(context, KubeName, metav1.GetOptions{})
+			Get(ctx, KubeName, metav1.GetOptions{})
 		if err != nil {
 			logrus.Error(err)
 			continue

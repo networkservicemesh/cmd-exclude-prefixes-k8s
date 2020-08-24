@@ -179,8 +179,8 @@ func getNamespaces(cs *kubernetes.Clientset) ([]string, error) {
 	}
 
 	rv := []string{}
-	for _, n := range ns.Items {
-		rv = append(rv, n.Name)
+	for i := range ns.Items {
+		rv = append(rv, ns.Items[i].Name)
 	}
 	return rv, nil
 }
@@ -248,11 +248,11 @@ func watchSubnet(resourceWatcher watch.Interface, keyFunc keyFunc, subnetFunc su
 }
 
 func MaxCommonPrefixSubnet(s1, s2 *net.IPNet) *net.IPNet {
-	rawIp1, n1 := fromIP(s1.IP)
-	rawIp2, _ := fromIP(s2.IP)
+	rawIP1, n1 := fromIP(s1.IP)
+	rawIP2, _ := fromIP(s2.IP)
 
 	xored := &big.Int{}
-	xored.Xor(rawIp1, rawIp2)
+	xored.Xor(rawIP1, rawIP2)
 	maskSize := leadingZeros(xored, n1)
 
 	m1, bits := s1.Mask.Size()
