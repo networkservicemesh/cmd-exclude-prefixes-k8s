@@ -14,28 +14,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package prefixcollector
+package utils
 
 import (
 	"context"
 	"github.com/ghodss/yaml"
 	"k8s.io/client-go/kubernetes"
+	"os"
 	"sync"
 )
+
+const ClientSetKey = "clientsetKey"
 
 type Prefixes struct {
 	PrefixesList []string `json:"Prefixes"`
 }
 
-func GetNotifyChannel(sources ...ExcludePrefixSource) <-chan struct{} {
-	channels := make([]<-chan struct{}, len(sources))
-	for _, v := range sources {
-		channels = append(channels, v.GetNotifyChannel())
-	}
-	return mergeNotifyChannels(channels...)
-}
-
-func mergeNotifyChannels(channels ...<-chan struct{}) <-chan struct{} {
+func MergeNotifyChannels(channels ...<-chan struct{}) <-chan struct{} {
 	out := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(len(channels))
@@ -58,7 +53,7 @@ func mergeNotifyChannels(channels ...<-chan struct{}) <-chan struct{} {
 }
 
 func FromContext(ctx context.Context) *kubernetes.Clientset {
-	return ctx.Value(ClientsetKey).(*kubernetes.Clientset)
+	return ctx.Value(ClientSetKey).(*kubernetes.Clientset)
 }
 
 func PrefixesToYaml(prefixesList []string) ([]byte, error) {
@@ -82,6 +77,19 @@ func YamlToPrefixes(bytes []byte) (Prefixes, error) {
 	return destination, nil
 }
 
-func notify(notifyChan chan<- struct{}) {
+func Notify(notifyChan chan<- struct{}) {
 	notifyChan <- struct{}{}
+}
+
+func CreateDirIfNotExists(path string) error {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if err == nil {
+			return nil
+		}
+		if err = os.MkdirAll(path, os.ModePerm); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

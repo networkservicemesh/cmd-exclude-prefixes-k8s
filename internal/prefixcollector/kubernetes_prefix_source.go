@@ -46,7 +46,7 @@ func NewKubernetesPrefixSource(context context.Context) *KubernetesPrefixSource 
 }
 
 func (kps *KubernetesPrefixSource) watchSubnets(context context.Context) {
-	clientSet := FromContext(context)
+	clientSet := utils.FromContext(context)
 	for {
 		pw, err := WatchPodCIDR(clientSet)
 		if err != nil {
@@ -79,7 +79,7 @@ func (kps *KubernetesPrefixSource) watchSubnets(context context.Context) {
 
 			prefixes := getPrefixes(podSubnet, serviceSubnet)
 			kps.prefixes.SetList(prefixes)
-			notify(kps.notifyChan)
+			utils.Notify(kps.notifyChan)
 		}
 	}
 }

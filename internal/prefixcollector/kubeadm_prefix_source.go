@@ -47,7 +47,7 @@ func (kaps *KubeAdmPrefixSource) GetPrefixes() []string {
 }
 
 func NewKubeAdmPrefixSource(context context.Context) *KubeAdmPrefixSource {
-	clientSet := FromContext(context)
+	clientSet := utils.FromContext(context)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(KubeNamespace)
 	kaps := KubeAdmPrefixSource{
 		configMapInterface,
@@ -62,7 +62,7 @@ func NewKubeAdmPrefixSource(context context.Context) *KubeAdmPrefixSource {
 
 func (cmps *KubeAdmPrefixSource) watchKubeAdmConfigMap(context context.Context) {
 	for {
-		clientSet := FromContext(context)
+		clientSet := utils.FromContext(context)
 		kubeadmConfig, err := clientSet.CoreV1().ConfigMaps(KubeNamespace).
 			Get(context, KubeName, metav1.GetOptions{})
 		if err != nil {
@@ -92,6 +92,6 @@ func (cmps *KubeAdmPrefixSource) watchKubeAdmConfigMap(context context.Context) 
 			podSubnet,
 			serviceSubnet,
 		})
-		notify(cmps.notifyChan)
+		utils.Notify(cmps.notifyChan)
 	}
 }

@@ -35,7 +35,7 @@ type ConfigMapPrefixSource struct {
 }
 
 func NewConfigMapPrefixSource(context context.Context, name, namespace string) *ConfigMapPrefixSource {
-	clientSet := FromContext(context)
+	clientSet := utils.FromContext(context)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(namespace)
 	cmps := ConfigMapPrefixSource{
 		name,
@@ -67,13 +67,13 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap(context context.Context) {
 		}
 
 		bytes := []byte(cm.Data[prefixpool.PrefixesFile])
-		prefixes, err := YamlToPrefixes(bytes)
+		prefixes, err := utils.YamlToPrefixes(bytes)
 		if err != nil {
 			logrus.Errorf("Can not unmarshal prefixes, err: %v", err.Error())
 			return
 		}
 		cmps.prefixes.SetList(prefixes.PrefixesList)
-		notify(cmps.notifyChan)
+		utils.Notify(cmps.notifyChan)
 		<-time.After(time.Second * 10)
 	}
 }

@@ -20,7 +20,6 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-
 	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 
 	"github.com/sirupsen/logrus"
@@ -57,26 +56,20 @@ func main() {
 		span.Logger().Fatalln("Failed to build Kubernetes clientset: ", err)
 	}
 
-	ctx = context.WithValue(ctx, prefixcollector.ClientsetKey, kubernetes.Interface(clientset))
+	ctx = context.WithValue(ctx, utils.ClientSetKey, kubernetes.Interface(clientset))
 
-	filePath := prefixpool.PrefixesFilePathDefault
-	filePath = "D:\\GO\\test\\excluded_prefixes.yaml"
-
-	excludePrefixService, err := prefixcollector.NewPrefixCollectorService(ctx, filePath)
-	if err != nil {
-		logrus.Errorf("Error creating excludePrefixService: %v", err)
-		return
+	if err = utils.CreateDirIfNotExists(prefixpool.NSMConfigDir); err != nil {
+		span.Logger().Fatalf("Failed to create exclude prefixes directory %v: %v", prefixpool.NSMConfigDir, err)
 	}
-	defaultPrefixSources := prefixcollector.GetDefaultPrefixSources(ctx)
-	excludePrefixService.Start(prefixcollector.GetNotifyChannel(defaultPrefixSources...))
+	filePath := prefixpool.PrefixesFilePathDefault
+
+	excludePrefixService := prefixcollector.NewExcludePrefixCollector(filePath, ctx,
+		prefixcollector.WithConfigMapSource(),
+		prefixcollector.WithKubeadmConfigSource(),
+		prefixcollector.WithKubernetesSource(),
+	)
+	excludePrefixService.Start()
 
 	span.Finish() // exclude main cycle run time from span timing
 	<-ctx.Done()
 }
-
-/*
-	Todo: 1)design or rename
-	2) namespace from env + default if doenst exist
-	3) prefix pool check
-	4) tests
-*/
