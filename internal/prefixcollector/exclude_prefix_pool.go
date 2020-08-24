@@ -28,12 +28,10 @@ type ExcludePrefixPool struct {
 }
 
 func NewExcludePrefixPool(prefixes ...string) (*ExcludePrefixPool, error) {
-	for _, prefix := range prefixes {
-		_, _, err := net.ParseCIDR(prefix)
-		if err != nil {
-			return nil, err
-		}
+	if err := validatePrefixes(prefixes); err != nil {
+		return nil, err
 	}
+
 	return &ExcludePrefixPool{
 		prefixes: prefixes,
 	}, nil
@@ -102,4 +100,15 @@ func intersect(first, second *net.IPNet) (bool, bool) {
 	}
 
 	return widerRange.Contains(narrowerRange.IP), firstIsBigger
+}
+
+func validatePrefixes(prefixes []string) error {
+	for _, prefix := range prefixes {
+		_, _, err := net.ParseCIDR(prefix)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

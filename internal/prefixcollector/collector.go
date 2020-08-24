@@ -31,9 +31,9 @@ type ExcludePrefixSource interface {
 }
 
 type ExcludePrefixCollector struct {
-	baseExcludePrefixes []string
-	filePath            string
-	sources             []ExcludePrefixSource
+	baseExcludePrefixes     []string
+	excludePrefixesFilePath string
+	sources                 []ExcludePrefixSource
 }
 
 type ExcludePrefixCollectorOption func(*ExcludePrefixCollector, context.Context)
@@ -88,7 +88,10 @@ func getPrefixesFromEnv() []string {
 	var envPrefixes []string
 	excludedPrefixesEnv, ok := os.LookupEnv(excludedPrefixesEnv)
 	if ok {
-		return strings.Split(excludedPrefixesEnv, ",")
+		envPrefixes = strings.Split(excludedPrefixesEnv, ",")
+		if err := validatePrefixes(envPrefixes); err == nil {
+			return envPrefixes
+		}
 	}
 
 	return envPrefixes
@@ -105,7 +108,6 @@ func (pcs *ExcludePrefixCollector) Start() {
 
 func (pcs *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 	excludePrefixPool, _ := NewExcludePrefixPool(pcs.baseExcludePrefixes...)
-	var err error
 
 	for _, v := range pcs.sources {
 		sourcePrefixes := v.GetPrefixes()
@@ -113,7 +115,7 @@ func (pcs *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 			continue
 		}
 
-		if err = excludePrefixPool.Add(v.GetPrefixes()); err != nil {
+		if err := excludePrefixPool.Add(v.GetPrefixes()); err != nil {
 			logrus.Error(err)
 			return
 		}
@@ -125,7 +127,7 @@ func (pcs *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 		return
 	}
 
-	err = ioutil.WriteFile(pcs.filePath, data, 0644)
+	err = ioutil.WriteFile(pcs.excludePrefixesFilePath, data, 0644)
 	if err != nil {
 		logrus.Fatalf("Unable to write into file: %v", err.Error())
 	}
