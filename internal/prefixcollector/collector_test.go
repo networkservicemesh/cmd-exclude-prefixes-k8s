@@ -3,8 +3,12 @@ package prefixcollector_test
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"context"
+	"github.com/ghodss/yaml"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
+	"time"
 
-	//"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
@@ -16,10 +20,13 @@ type dummyPrefixSource struct {
 	prefixes []string
 }
 
-const testFilePath = "testFile.yaml"
+const (
+	testFilePath  = "testFile.yaml"
+	configMapName = "test"
+)
 
 func (d *dummyPrefixSource) Start(chan<- struct{}) {
-
+	panic("Implement me")
 }
 
 func (d *dummyPrefixSource) GetPrefixes() []string {
@@ -58,9 +65,30 @@ func TestCollector(t *testing.T) {
 	testCollector(t, expectedResult, sourcesOption, prefixcollector.WithFilePath(testFilePath))
 }
 
+func TestKubeAdmConfigSource(t *testing.T) {
+	panic("implement me")
+}
+
+func TestConfigMapSource(t *testing.T) {
+	ctx := context.Background()
+	clientSet := fake.NewSimpleClientset()
+	configMap := getConfigMap(t)
+
+	ctx = context.WithValue(ctx, utils.ClientSetKey, clientSet)
+	_, _ = clientSet.CoreV1().
+		ConfigMaps(prefixcollector.DefaultConfigMapNamespace).
+		Create(ctx, configMap, metav1.CreateOptions{})
+
+	configMapSource := prefixcollector.
+		NewConfigMapPrefixSource(ctx, configMapName, prefixcollector.DefaultConfigMapNamespace)
+	options := prefixcollector.WithSources([]prefixcollector.ExcludePrefixSource{configMapSource})
+	testCollector(t, []string{"168.0.0.0/10", "1.0.0.0/11"}, options, prefixcollector.WithFilePath(testFilePath))
+}
+
 func testCollector(t *testing.T, expectedResult []string, options ...prefixcollector.ExcludePrefixCollectorOption) {
 	collector := prefixcollector.NewExcludePrefixCollector(context.Background(), options...)
-	collector.UpdateExcludedPrefixesConfigmap()
+	collector.Start()
+	<-time.After(time.Second)
 	bytes, err := ioutil.ReadFile(testFilePath)
 	if err != nil {
 		t.Fatal("Error reading test file: ", err)
@@ -73,4 +101,18 @@ func testCollector(t *testing.T, expectedResult []string, options ...prefixcolle
 
 	assert.ElementsMatch(t, expectedResult, prefixes.PrefixesList)
 	_ = os.Remove(testFilePath)
+}
+
+func getConfigMap(t *testing.T) *v1.ConfigMap {
+	const filePath = "./testfiles/userfile.yaml"
+	destination := v1.ConfigMap{}
+	bytes, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		t.Fatal("Error reading user config map: ", err)
+	}
+	if err = yaml.Unmarshal(bytes, &destination); err != nil {
+		t.Fatal("Error decoding user config map: ", err)
+	}
+
+	return &destination
 }

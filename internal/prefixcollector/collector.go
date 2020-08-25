@@ -129,7 +129,7 @@ func (pcs *ExcludePrefixCollector) Start() {
 
 	go func() {
 		for range pcs.notifyChan {
-			pcs.UpdateExcludedPrefixesConfigmap()
+			pcs.updateExcludedPrefixesConfigmap()
 		}
 	}()
 }
@@ -138,7 +138,7 @@ func (pcs *ExcludePrefixCollector) GetNotifyChan() chan<- struct{} {
 	return pcs.notifyChan
 }
 
-func (pcs *ExcludePrefixCollector) UpdateExcludedPrefixesConfigmap() {
+func (pcs *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 	excludePrefixPool, _ := NewExcludePrefixPool(pcs.baseExcludePrefixes...)
 
 	for _, v := range pcs.sources {
