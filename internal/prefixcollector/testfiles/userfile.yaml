@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: nsm-config-volume
+  name: test
   namespace: default
 data:
   excluded_prefixes.yaml: "prefixes:\n- 0.0.0.0/10\n- 1.1.1.1/11"

@@ -42,7 +42,6 @@ func main() {
 	span.Logger().Printf("Building Kubernetes clientset...")
 	config, err := utils.NewClientSetConfig()
 	if err != nil {
-		span.LogError(err)
 		span.Logger().Fatalln("Failed to build Kubernetes clientset: ", err)
 	}
 

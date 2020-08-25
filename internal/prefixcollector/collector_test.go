@@ -1,6 +1,8 @@
-package prefixcollector
+package prefixcollector_test
 
 import (
+	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
+	//"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"github.com/stretchr/testify/assert"
@@ -25,15 +27,16 @@ func newDummyPrefixSource(prefixes []string) *dummyPrefixSource {
 	return &dummyPrefixSource{prefixes}
 }
 
-func getDummyCollectorOption(prefixes []string) ExcludePrefixCollectorOption {
-	return func(collector *ExcludePrefixCollector, ctx context.Context) {
-		collector.sources = append(collector.sources, newDummyPrefixSource(prefixes))
+func getDummyCollectorOption(prefixes []string) prefixcollector.ExcludePrefixCollectorOption {
+	return func(collector *prefixcollector.ExcludePrefixCollector, ctx context.Context) {
+		collector.Sources = append(collector.Sources, newDummyPrefixSource(prefixes))
 	}
 }
 
 func TestCollector(t *testing.T) {
 	firstPrefixes := []string{
 		"127.0.0.1/16",
+		"127.0.2.1/16",
 		"168.92.0.1/24",
 	}
 	firstOption := getDummyCollectorOption(firstPrefixes)
@@ -46,18 +49,18 @@ func TestCollector(t *testing.T) {
 	secondOption := getDummyCollectorOption(secondPrefixes)
 
 	expectedResult := []string{
-		"127.0.0.1/16",
-		"168.92.0.1/16",
-		"134.56.0.1/8",
+		"127.0.0.0/16",
+		"168.92.0.0/16",
+		"134.0.0.0/8",
 	}
 
 	testCollector(t, expectedResult, firstOption, secondOption)
 }
 
-func testCollector(t *testing.T, expectedResult []string, options ...ExcludePrefixCollectorOption) {
+func testCollector(t *testing.T, expectedResult []string, options ...prefixcollector.ExcludePrefixCollectorOption) {
 	const path = "test.yaml"
-	collector := NewExcludePrefixCollector(path, nil, options...)
-	collector.updateExcludedPrefixesConfigmap()
+	collector := prefixcollector.NewExcludePrefixCollector(path, nil, options...)
+	collector.UpdateExcludedPrefixesConfigmap()
 	bytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		t.Fatal("Error reading test file: ", err)

@@ -33,7 +33,7 @@ type ExcludePrefixSource interface {
 type ExcludePrefixCollector struct {
 	baseExcludePrefixes     []string
 	excludePrefixesFilePath string
-	sources                 []ExcludePrefixSource
+	Sources                 []ExcludePrefixSource
 }
 
 type ExcludePrefixCollectorOption func(*ExcludePrefixCollector, context.Context)
@@ -41,31 +41,31 @@ type ExcludePrefixCollectorOption func(*ExcludePrefixCollector, context.Context)
 const (
 	excludedPrefixesEnv       = "EXCLUDED_PREFIXES"
 	configMapNamespaceEnv     = "CONFIG_NAMESPACE"
-	defaultConfigMapNamespace = "default"
+	DefaultConfigMapNamespace = "default"
 )
 
 func WithConfigMapSource() ExcludePrefixCollectorOption {
 	namespace := os.Getenv(configMapNamespaceEnv)
 	if namespace == "" {
-		namespace = defaultConfigMapNamespace
+		namespace = DefaultConfigMapNamespace
 	}
 	return func(collector *ExcludePrefixCollector, ctx context.Context) {
 		configMapWatcher := NewConfigMapPrefixSource(ctx, "nsm-config-volume", namespace)
-		collector.sources = append(collector.sources, configMapWatcher)
+		collector.Sources = append(collector.Sources, configMapWatcher)
 	}
 }
 
 func WithKubeadmConfigSource() ExcludePrefixCollectorOption {
 	return func(collector *ExcludePrefixCollector, ctx context.Context) {
 		kubeAdmPrefixSource := NewKubeAdmPrefixSource(ctx)
-		collector.sources = append(collector.sources, kubeAdmPrefixSource)
+		collector.Sources = append(collector.Sources, kubeAdmPrefixSource)
 	}
 }
 
 func WithKubernetesSource() ExcludePrefixCollectorOption {
 	return func(collector *ExcludePrefixCollector, ctx context.Context) {
 		kubernetesSource := NewKubernetesPrefixSource(ctx)
-		collector.sources = append(collector.sources, kubernetesSource)
+		collector.Sources = append(collector.Sources, kubernetesSource)
 	}
 }
 
@@ -98,24 +98,26 @@ func getPrefixesFromEnv() []string {
 }
 
 func (pcs *ExcludePrefixCollector) Start() {
-	notifyChannel := getNotifyChannel(pcs.sources)
+	notifyChannel := getNotifyChannel(pcs.Sources)
 	go func() {
 		for range notifyChannel {
-			pcs.updateExcludedPrefixesConfigmap()
+			pcs.UpdateExcludedPrefixesConfigmap()
 		}
 	}()
 }
 
-func (pcs *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
+func (pcs *ExcludePrefixCollector) UpdateExcludedPrefixesConfigmap() {
 	excludePrefixPool, _ := NewExcludePrefixPool(pcs.baseExcludePrefixes...)
+	//excludePrefixPool, _ := prefixpool.NewPrefixPool(pcs.baseExcludePrefixes...)
 
-	for _, v := range pcs.sources {
+	for _, v := range pcs.Sources {
 		sourcePrefixes := v.GetPrefixes()
 		if len(sourcePrefixes) == 0 {
 			continue
 		}
 
 		if err := excludePrefixPool.Add(v.GetPrefixes()); err != nil {
+			//if err := excludePrefixPool.ReleaseExcludedPrefixes(v.GetPrefixes()); err != nil {
 			logrus.Error(err)
 			return
 		}

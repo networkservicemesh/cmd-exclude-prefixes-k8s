@@ -18,6 +18,7 @@ package prefixcollector
 
 import (
 	"github.com/sirupsen/logrus"
+	"math/big"
 	"net"
 	"sync"
 )
@@ -28,16 +29,18 @@ type ExcludePrefixPool struct {
 }
 
 func NewExcludePrefixPool(prefixes ...string) (*ExcludePrefixPool, error) {
-	if err := validatePrefixes(prefixes); err != nil {
+	pool := &ExcludePrefixPool{
+		prefixes: make([]string, 0, len(prefixes)),
+	}
+	if err := pool.Add(prefixes); err != nil {
 		return nil, err
 	}
 
-	return &ExcludePrefixPool{
-		prefixes: prefixes,
-	}, nil
+	return pool, nil
 }
 
 func (impl *ExcludePrefixPool) Add(prefixesToAdd []string) error {
+	prefixesToAdd, _ = impl.deleteEqualPrefixes(prefixesToAdd)
 	impl.lock.Lock()
 	newPrefixes := make([]string, 0, len(impl.prefixes)+len(prefixesToAdd))
 	prefixesToRemove := make(map[int]struct{})
@@ -76,6 +79,47 @@ func (impl *ExcludePrefixPool) Add(prefixesToAdd []string) error {
 	impl.lock.Unlock()
 
 	return nil
+}
+
+func (impl *ExcludePrefixPool) deleteEqualPrefixes(prefixesToAdd []string) ([]string, error) {
+	newPrefixes := make([]string, 0, len(prefixesToAdd))
+	prefixesByMask := make(map[string][]*net.IPNet)
+
+	for _, prefix := range prefixesToAdd {
+		_, ipnet, err := net.ParseCIDR(prefix)
+		if err != nil {
+			return nil, err
+		}
+		maskSize, _ := ipnet.Mask.Size()
+		baseIP := &net.IPNet{
+			IP:   clearNetIndexInIP(ipnet.IP, maskSize),
+			Mask: ipnet.Mask,
+		}
+		prefixesByMask[baseIP.String()] = append(prefixesByMask[baseIP.String()], baseIP)
+	}
+
+	for mask := range prefixesByMask {
+		newPrefixes = append(newPrefixes, mask)
+	}
+
+	return newPrefixes, nil
+}
+
+func clearNetIndexInIP(ip net.IP, prefixLen int) net.IP {
+	ipInt, totalBits := fromIP(ip)
+	ipInt.SetBit(ipInt, totalBits-prefixLen, 0)
+	return toIP(ipInt, totalBits)
+}
+
+func toIP(ipInt *big.Int, bits int) net.IP {
+	ipBytes := ipInt.Bytes()
+	ret := make([]byte, bits/8)
+	// Pack our IP bytes into the end of the return array,
+	// since big.Int.Bytes() removes front zero padding.
+	for i := 1; i <= len(ipBytes); i++ {
+		ret[len(ret)-i] = ipBytes[len(ipBytes)-i]
+	}
+	return ret
 }
 
 func (impl *ExcludePrefixPool) GetPrefixes() []string {
