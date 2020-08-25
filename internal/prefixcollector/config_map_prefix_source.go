@@ -31,38 +31,36 @@ type ConfigMapPrefixSource struct {
 	configMapNameSpace string
 	configMapInterface v1.ConfigMapInterface
 	prefixes           utils.SynchronizedPrefixList
-	notifyChan         chan struct{}
+	ctx                context.Context
 }
 
 func NewConfigMapPrefixSource(ctx context.Context, name, namespace string) *ConfigMapPrefixSource {
 	clientSet := utils.FromContext(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(namespace)
 	cmps := ConfigMapPrefixSource{
-		name,
-		namespace,
-		configMapInterface,
-		utils.NewSynchronizedPrefixListImpl(),
-		make(chan struct{}, 1),
+		configMapName:      name,
+		configMapNameSpace: namespace,
+		configMapInterface: configMapInterface,
+		prefixes:           utils.NewSynchronizedPrefixListImpl(),
+		ctx:                ctx,
 	}
 
-	go cmps.watchConfigMap(ctx)
-
 	return &cmps
-}
-
-func (cmps *ConfigMapPrefixSource) GetNotifyChannel() <-chan struct{} {
-	return cmps.notifyChan
 }
 
 func (cmps *ConfigMapPrefixSource) GetPrefixes() []string {
 	return cmps.prefixes.GetList()
 }
 
-func (cmps *ConfigMapPrefixSource) watchConfigMap(ctx context.Context) {
+func (cmps *ConfigMapPrefixSource) Start(notifyChan chan<- struct{}) {
+	go cmps.watchConfigMap(notifyChan)
+}
+
+func (cmps *ConfigMapPrefixSource) watchConfigMap(notifyChan chan<- struct{}) {
 	for {
-		cm, err := cmps.configMapInterface.Get(ctx, cmps.configMapName, metav1.GetOptions{})
+		cm, err := cmps.configMapInterface.Get(cmps.ctx, cmps.configMapName, metav1.GetOptions{})
 		if err != nil {
-			logrus.Errorf("Failed to get ConfigMap '%s/%s': %v", cmps.configMapNameSpace, cmps.configMapName, err)
+			logrus.Errorf("Failed to get ConfigMap '%sources/%sources': %v", cmps.configMapNameSpace, cmps.configMapName, err)
 			return
 		}
 
@@ -73,7 +71,7 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap(ctx context.Context) {
 			return
 		}
 		cmps.prefixes.SetList(prefixes.PrefixesList)
-		utils.Notify(cmps.notifyChan)
+		utils.Notify(notifyChan)
 		<-time.After(time.Second * 10)
 	}
 }

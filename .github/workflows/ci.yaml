@@ -132,8 +132,9 @@ jobs:
         uses: actions/checkout@v2
       - name: Exclude replace in go.mod
         run: |
-          grep ^replace go.mod || exit 0
-          exit 1
+          cat go.mod |
+          grep -v 'k8s.io/.* => k8s.io/.*' |
+          grep ^'=>' || exit 0
   captureRunEnv:
     name: Capture CI Run Env
     runs-on: ubuntu-latest

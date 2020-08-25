@@ -47,7 +47,7 @@ func (s *SubnetWatcher) ResultChan() <-chan *net.IPNet {
 type keyFunc func(event watch.Event) (string, error)
 type subnetFunc func(event watch.Event) (*net.IPNet, error)
 
-func WatchPodCIDR(clientset *kubernetes.Clientset) (*SubnetWatcher, error) {
+func WatchPodCIDR(clientset kubernetes.Interface) (*SubnetWatcher, error) {
 	nodeWatcher, err := clientset.CoreV1().Nodes().Watch(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		logrus.Error(err)
@@ -85,7 +85,7 @@ func WatchPodCIDR(clientset *kubernetes.Clientset) (*SubnetWatcher, error) {
 	return watchSubnet(nodeWatcher, keyFunc, subnetFunc)
 }
 
-func WatchServiceIpAddr(cs *kubernetes.Clientset) (*SubnetWatcher, error) {
+func WatchServiceIpAddr(cs kubernetes.Interface) (*SubnetWatcher, error) {
 	serviceWatcher, err := newServiceWatcher(cs)
 	if err != nil {
 		logrus.Error(err)
@@ -138,7 +138,7 @@ func (s *serviceWatcher) ResultChan() <-chan watch.Event {
 	return s.resultCh
 }
 
-func newServiceWatcher(cs *kubernetes.Clientset) (watch.Interface, error) {
+func newServiceWatcher(cs kubernetes.Interface) (watch.Interface, error) {
 	ns, err := getNamespaces(cs)
 	if err != nil {
 		return nil, err
@@ -172,7 +172,7 @@ func newServiceWatcher(cs *kubernetes.Clientset) (watch.Interface, error) {
 	}, nil
 }
 
-func getNamespaces(cs *kubernetes.Clientset) ([]string, error) {
+func getNamespaces(cs kubernetes.Interface) ([]string, error) {
 	ns, err := cs.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err

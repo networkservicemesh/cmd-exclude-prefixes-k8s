@@ -23,12 +23,12 @@ import (
 )
 
 type KubernetesPrefixSource struct {
-	notifyChan chan struct{}
-	prefixes   utils.SynchronizedPrefixList
+	prefixes utils.SynchronizedPrefixList
+	ctx      context.Context
 }
 
-func (kps *KubernetesPrefixSource) GetNotifyChannel() <-chan struct{} {
-	return kps.notifyChan
+func (kps *KubernetesPrefixSource) Start(notifyChan chan<- struct{}) {
+	go kps.watchSubnets(notifyChan)
 }
 
 func (kps *KubernetesPrefixSource) GetPrefixes() []string {
@@ -37,16 +37,15 @@ func (kps *KubernetesPrefixSource) GetPrefixes() []string {
 
 func NewKubernetesPrefixSource(ctx context.Context) *KubernetesPrefixSource {
 	kps := &KubernetesPrefixSource{
-		make(chan struct{}, 1),
-		utils.NewSynchronizedPrefixListImpl(),
+		prefixes: utils.NewSynchronizedPrefixListImpl(),
+		ctx:      ctx,
 	}
 
-	go kps.watchSubnets(ctx)
 	return kps
 }
 
-func (kps *KubernetesPrefixSource) watchSubnets(context context.Context) {
-	clientSet := utils.FromContext(context)
+func (kps *KubernetesPrefixSource) watchSubnets(notifyChan chan<- struct{}) {
+	clientSet := utils.FromContext(kps.ctx)
 	for {
 		pw, err := WatchPodCIDR(clientSet)
 		if err != nil {
@@ -79,7 +78,7 @@ func (kps *KubernetesPrefixSource) watchSubnets(context context.Context) {
 
 			prefixes := getPrefixes(podSubnet, serviceSubnet)
 			kps.prefixes.SetList(prefixes)
-			utils.Notify(kps.notifyChan)
+			utils.Notify(notifyChan)
 		}
 	}
 }

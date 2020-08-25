@@ -19,6 +19,7 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"
@@ -26,62 +27,86 @@ import (
 )
 
 type ExcludePrefixSource interface {
-	GetNotifyChannel() <-chan struct{}
+	Start(chan<- struct{})
 	GetPrefixes() []string
 }
 
 type ExcludePrefixCollector struct {
-	baseExcludePrefixes     []string
-	excludePrefixesFilePath string
-	Sources                 []ExcludePrefixSource
+	notifyChan          chan struct{}
+	baseExcludePrefixes []string
+	outputFilePath      string
+	sources             []ExcludePrefixSource
 }
 
-type ExcludePrefixCollectorOption func(*ExcludePrefixCollector, context.Context)
+type ExcludePrefixCollectorOption func(*ExcludePrefixCollector)
 
 const (
 	excludedPrefixesEnv       = "EXCLUDED_PREFIXES"
 	configMapNamespaceEnv     = "CONFIG_NAMESPACE"
 	DefaultConfigMapNamespace = "default"
+	defaultConfigMapName      = "nsm-config-volume"
 )
 
-func WithConfigMapSource() ExcludePrefixCollectorOption {
-	namespace := os.Getenv(configMapNamespaceEnv)
-	if namespace == "" {
-		namespace = DefaultConfigMapNamespace
-	}
-	return func(collector *ExcludePrefixCollector, ctx context.Context) {
-		configMapWatcher := NewConfigMapPrefixSource(ctx, "nsm-config-volume", namespace)
-		collector.Sources = append(collector.Sources, configMapWatcher)
+func WithFilePath(filePath string) ExcludePrefixCollectorOption {
+	return func(collector *ExcludePrefixCollector) {
+		collector.outputFilePath = filePath
 	}
 }
 
-func WithKubeadmConfigSource() ExcludePrefixCollectorOption {
-	return func(collector *ExcludePrefixCollector, ctx context.Context) {
-		kubeAdmPrefixSource := NewKubeAdmPrefixSource(ctx)
-		collector.Sources = append(collector.Sources, kubeAdmPrefixSource)
+func WithNotifyChan(notifyChan chan struct{}) ExcludePrefixCollectorOption {
+	return func(collector *ExcludePrefixCollector) {
+		collector.notifyChan = notifyChan
 	}
 }
 
-func WithKubernetesSource() ExcludePrefixCollectorOption {
-	return func(collector *ExcludePrefixCollector, ctx context.Context) {
-		kubernetesSource := NewKubernetesPrefixSource(ctx)
-		collector.Sources = append(collector.Sources, kubernetesSource)
+func WithSources(sources []ExcludePrefixSource) ExcludePrefixCollectorOption {
+	return func(collector *ExcludePrefixCollector) {
+		collector.sources = sources
 	}
 }
 
-func NewExcludePrefixCollector(filePath string, ctx context.Context,
-	options ...ExcludePrefixCollectorOption) *ExcludePrefixCollector {
+func NewExcludePrefixCollector(ctx context.Context, options ...ExcludePrefixCollectorOption) *ExcludePrefixCollector {
 	collector := &ExcludePrefixCollector{
-		getPrefixesFromEnv(),
-		filePath,
-		make([]ExcludePrefixSource, 0, len(options)),
+		baseExcludePrefixes: getPrefixesFromEnv(),
+		notifyChan:          make(chan struct{}, 1),
 	}
 
 	for _, option := range options {
-		option(collector, ctx)
+		option(collector)
+	}
+
+	if collector.outputFilePath == "" {
+		collector.outputFilePath = getDefaultOutputFilePath()
+	}
+
+	if collector.sources == nil {
+		collector.sources = getDefaultSources(ctx)
 	}
 
 	return collector
+}
+
+func getDefaultSources(ctx context.Context) []ExcludePrefixSource {
+	return []ExcludePrefixSource{
+		NewKubeAdmPrefixSource(ctx),
+		NewKubernetesPrefixSource(ctx),
+		NewConfigMapPrefixSource(ctx, defaultConfigMapName, getDefaultConfigMapNamespace()),
+	}
+}
+
+func getDefaultConfigMapNamespace() string {
+	configMapNamespace := os.Getenv(configMapNamespaceEnv)
+	if configMapNamespace == "" {
+		configMapNamespace = DefaultConfigMapNamespace
+	}
+	return configMapNamespace
+}
+
+func getDefaultOutputFilePath() string {
+	if err := utils.CreateDirIfNotExists(prefixpool.NSMConfigDir); err != nil {
+		logrus.Fatalf("Failed to create exclude prefixes directory %v: %v", prefixpool.NSMConfigDir, err)
+	}
+	return prefixpool.PrefixesFilePathDefault
 }
 
 func getPrefixesFromEnv() []string {
@@ -98,26 +123,31 @@ func getPrefixesFromEnv() []string {
 }
 
 func (pcs *ExcludePrefixCollector) Start() {
-	notifyChannel := getNotifyChannel(pcs.Sources)
+	for _, source := range pcs.sources {
+		source.Start(pcs.notifyChan)
+	}
+
 	go func() {
-		for range notifyChannel {
+		for range pcs.notifyChan {
 			pcs.UpdateExcludedPrefixesConfigmap()
 		}
 	}()
 }
 
+func (pcs *ExcludePrefixCollector) GetNotifyChan() chan<- struct{} {
+	return pcs.notifyChan
+}
+
 func (pcs *ExcludePrefixCollector) UpdateExcludedPrefixesConfigmap() {
 	excludePrefixPool, _ := NewExcludePrefixPool(pcs.baseExcludePrefixes...)
-	//excludePrefixPool, _ := prefixpool.NewPrefixPool(pcs.baseExcludePrefixes...)
 
-	for _, v := range pcs.Sources {
+	for _, v := range pcs.sources {
 		sourcePrefixes := v.GetPrefixes()
 		if len(sourcePrefixes) == 0 {
 			continue
 		}
 
 		if err := excludePrefixPool.Add(v.GetPrefixes()); err != nil {
-			//if err := excludePrefixPool.ReleaseExcludedPrefixes(v.GetPrefixes()); err != nil {
 			logrus.Error(err)
 			return
 		}
@@ -129,16 +159,8 @@ func (pcs *ExcludePrefixCollector) UpdateExcludedPrefixesConfigmap() {
 		return
 	}
 
-	err = ioutil.WriteFile(pcs.excludePrefixesFilePath, data, 0644)
+	err = ioutil.WriteFile(pcs.outputFilePath, data, 0644)
 	if err != nil {
 		logrus.Fatalf("Unable to write into file: %v", err.Error())
 	}
-}
-
-func getNotifyChannel(sources []ExcludePrefixSource) <-chan struct{} {
-	channels := make([]<-chan struct{}, len(sources))
-	for _, v := range sources {
-		channels = append(channels, v.GetNotifyChannel())
-	}
-	return utils.MergeNotifyChannels(channels...)
 }

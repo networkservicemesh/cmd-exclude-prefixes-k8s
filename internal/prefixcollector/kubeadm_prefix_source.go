@@ -35,11 +35,11 @@ const (
 type KubeAdmPrefixSource struct {
 	configMapInterface v1.ConfigMapInterface
 	prefixes           utils.SynchronizedPrefixList
-	notifyChan         chan struct{}
+	ctx                context.Context
 }
 
-func (kaps *KubeAdmPrefixSource) GetNotifyChannel() <-chan struct{} {
-	return kaps.notifyChan
+func (cmps *KubeAdmPrefixSource) Start(notifyChan chan<- struct{}) {
+	go cmps.watchKubeAdmConfigMap(notifyChan)
 }
 
 func (kaps *KubeAdmPrefixSource) GetPrefixes() []string {
@@ -50,21 +50,19 @@ func NewKubeAdmPrefixSource(ctx context.Context) *KubeAdmPrefixSource {
 	clientSet := utils.FromContext(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(KubeNamespace)
 	kaps := KubeAdmPrefixSource{
-		configMapInterface,
-		utils.NewSynchronizedPrefixListImpl(),
-		make(chan struct{}, 1),
+		configMapInterface: configMapInterface,
+		prefixes:           utils.NewSynchronizedPrefixListImpl(),
+		ctx:                ctx,
 	}
-
-	go kaps.watchKubeAdmConfigMap(ctx)
 
 	return &kaps
 }
 
-func (cmps *KubeAdmPrefixSource) watchKubeAdmConfigMap(ctx context.Context) {
+func (cmps *KubeAdmPrefixSource) watchKubeAdmConfigMap(notifyChan chan<- struct{}) {
 	for {
-		clientSet := utils.FromContext(ctx)
+		clientSet := utils.FromContext(cmps.ctx)
 		kubeadmConfig, err := clientSet.CoreV1().ConfigMaps(KubeNamespace).
-			Get(ctx, KubeName, metav1.GetOptions{})
+			Get(cmps.ctx, KubeName, metav1.GetOptions{})
 		if err != nil {
 			logrus.Error(err)
 			continue
@@ -92,6 +90,6 @@ func (cmps *KubeAdmPrefixSource) watchKubeAdmConfigMap(ctx context.Context) {
 			podSubnet,
 			serviceSubnet,
 		})
-		utils.Notify(cmps.notifyChan)
+		utils.Notify(notifyChan)
 	}
 }

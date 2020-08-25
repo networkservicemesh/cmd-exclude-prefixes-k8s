@@ -21,7 +21,6 @@ import (
 	"github.com/ghodss/yaml"
 	"k8s.io/client-go/kubernetes"
 	"os"
-	"sync"
 )
 
 const ClientSetKey = "clientsetKey"
@@ -30,30 +29,8 @@ type Prefixes struct {
 	PrefixesList []string `json:"Prefixes"`
 }
 
-func MergeNotifyChannels(channels ...<-chan struct{}) <-chan struct{} {
-	out := make(chan struct{})
-	var wg sync.WaitGroup
-	wg.Add(len(channels))
-	output := func(c <-chan struct{}) {
-		for n := range c {
-			out <- n
-		}
-		wg.Done()
-	}
-
-	for _, c := range channels {
-		go output(c)
-	}
-
-	go func() {
-		wg.Wait()
-		close(out)
-	}()
-	return out
-}
-
-func FromContext(ctx context.Context) *kubernetes.Clientset {
-	return ctx.Value(ClientSetKey).(*kubernetes.Clientset)
+func FromContext(ctx context.Context) kubernetes.Interface {
+	return ctx.Value(ClientSetKey).(kubernetes.Interface)
 }
 
 func PrefixesToYaml(prefixesList []string) ([]byte, error) {

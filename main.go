@@ -20,8 +20,6 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
-
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/jaeger"
@@ -54,16 +52,7 @@ func main() {
 
 	ctx = context.WithValue(ctx, utils.ClientSetKey, kubernetes.Interface(clientset))
 
-	if err = utils.CreateDirIfNotExists(prefixpool.NSMConfigDir); err != nil {
-		span.Logger().Fatalf("Failed to create exclude prefixes directory %v: %v", prefixpool.NSMConfigDir, err)
-	}
-	filePath := prefixpool.PrefixesFilePathDefault
-
-	excludePrefixService := prefixcollector.NewExcludePrefixCollector(filePath, ctx,
-		prefixcollector.WithConfigMapSource(),
-		prefixcollector.WithKubeadmConfigSource(),
-		prefixcollector.WithKubernetesSource(),
-	)
+	excludePrefixService := prefixcollector.NewExcludePrefixCollector(ctx)
 	excludePrefixService.Start()
 
 	span.Finish() // exclude main cycle run time from span timing
