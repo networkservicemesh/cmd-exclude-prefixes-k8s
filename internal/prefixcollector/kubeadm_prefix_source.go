@@ -25,11 +25,13 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta2"
 	"strings"
+	"time"
 )
 
 const (
 	KubeNamespace = "kube-system"
 	KubeName      = "kubeadm-config"
+	bufferSize    = 4096
 )
 
 type KubeAdmPrefixSource struct {
@@ -69,7 +71,7 @@ func (cmps *KubeAdmPrefixSource) watchKubeAdmConfigMap(notifyChan chan<- struct{
 		}
 
 		clusterConfiguration := &v1beta2.ClusterConfiguration{}
-		err = yaml.NewYAMLOrJSONDecoder(strings.NewReader(kubeadmConfig.Data["ClusterConfiguration"]), 4096).
+		err = yaml.NewYAMLOrJSONDecoder(strings.NewReader(kubeadmConfig.Data["ClusterConfiguration"]), bufferSize).
 			Decode(clusterConfiguration)
 		if err != nil {
 			logrus.Error(err)
@@ -91,5 +93,6 @@ func (cmps *KubeAdmPrefixSource) watchKubeAdmConfigMap(notifyChan chan<- struct{
 			serviceSubnet,
 		})
 		utils.Notify(notifyChan)
+		<-time.After(time.Second * 10)
 	}
 }

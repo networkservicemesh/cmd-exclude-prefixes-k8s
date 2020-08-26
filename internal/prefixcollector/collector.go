@@ -122,26 +122,27 @@ func getPrefixesFromEnv() []string {
 	return envPrefixes
 }
 
-func (pcs *ExcludePrefixCollector) Start() {
-	for _, source := range pcs.sources {
-		source.Start(pcs.notifyChan)
+func (epc *ExcludePrefixCollector) Start() {
+	for _, source := range epc.sources {
+		source.Start(epc.notifyChan)
 	}
 
 	go func() {
-		for range pcs.notifyChan {
-			pcs.updateExcludedPrefixesConfigmap()
+		for range epc.notifyChan {
+			epc.updateExcludedPrefixesConfigmap()
 		}
 	}()
 }
 
-func (pcs *ExcludePrefixCollector) GetNotifyChan() chan<- struct{} {
-	return pcs.notifyChan
+func (epc *ExcludePrefixCollector) GetNotifyChan() chan<- struct{} {
+	return epc.notifyChan
 }
 
-func (pcs *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
-	excludePrefixPool, _ := NewExcludePrefixPool(pcs.baseExcludePrefixes...)
+func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
+	// error check skipped, because we've already validated baseExcludePrefixes
+	excludePrefixPool, _ := NewExcludePrefixPool(epc.baseExcludePrefixes...)
 
-	for _, v := range pcs.sources {
+	for _, v := range epc.sources {
 		sourcePrefixes := v.GetPrefixes()
 		if len(sourcePrefixes) == 0 {
 			continue
@@ -159,7 +160,7 @@ func (pcs *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 		return
 	}
 
-	err = ioutil.WriteFile(pcs.outputFilePath, data, 0644)
+	err = ioutil.WriteFile(epc.outputFilePath, data, 0644)
 	if err != nil {
 		logrus.Fatalf("Unable to write into file: %v", err.Error())
 	}

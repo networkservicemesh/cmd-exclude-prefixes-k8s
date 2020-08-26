@@ -1,0 +1,56 @@
+apiVersion: v1
+data:
+  ClusterConfiguration: |
+    apiServer:
+      certSANs:
+      - localhost
+      - 127.0.0.1
+      extraArgs:
+        authorization-mode: Node,RBAC
+      timeoutForControlPlane: 4m0s
+    apiVersion: kubeadm.k8s.io/v1beta2
+    certificatesDir: /etc/kubernetes/pki
+    clusterName: kind
+    controlPlaneEndpoint: kind-control-plane:6443
+    controllerManager:
+      extraArgs:
+        enable-hostpath-provisioner: "true"
+    dns:
+      type: CoreDNS
+    etcd:
+      local:
+        dataDir: /var/lib/etcd
+    imageRepository: k8s.gcr.io
+    kind: ClusterConfiguration
+    kubernetesVersion: v1.18.2
+    networking:
+      dnsDomain: cluster.local
+      podSubnet: 10.244.0.0/16
+      serviceSubnet: 10.96.0.0/12
+    scheduler: {}
+  ClusterStatus: |
+    apiEndpoints:
+      kind-control-plane:
+        advertiseAddress: 172.18.0.2
+        bindPort: 6443
+    apiVersion: kubeadm.k8s.io/v1beta2
+    kind: ClusterStatus
+kind: ConfigMap
+metadata:
+  creationTimestamp: "2020-08-19T06:44:41Z"
+  managedFields:
+    - apiVersion: v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:data:
+          .: { }
+          f:ClusterConfiguration: { }
+          f:ClusterStatus: { }
+      manager: kubeadm
+      operation: Update
+      time: "2020-08-19T06:44:41Z"
+  name: kubeadm-config
+  namespace: kube-system
+  resourceVersion: "158"
+  selfLink: /api/v1/namespaces/kube-system/configmaps/kubeadm-config
+  uid: 09c34b3e-d959-4356-b35a-85447a2f11f6

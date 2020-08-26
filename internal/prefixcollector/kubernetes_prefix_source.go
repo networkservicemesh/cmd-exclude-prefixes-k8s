@@ -20,6 +20,7 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"github.com/sirupsen/logrus"
+	"k8s.io/client-go/kubernetes"
 )
 
 type KubernetesPrefixSource struct {
@@ -28,7 +29,7 @@ type KubernetesPrefixSource struct {
 }
 
 func (kps *KubernetesPrefixSource) Start(notifyChan chan<- struct{}) {
-	go kps.watchSubnets(notifyChan)
+	go kps.start(notifyChan)
 }
 
 func (kps *KubernetesPrefixSource) GetPrefixes() []string {
@@ -44,42 +45,50 @@ func NewKubernetesPrefixSource(ctx context.Context) *KubernetesPrefixSource {
 	return kps
 }
 
-func (kps *KubernetesPrefixSource) watchSubnets(notifyChan chan<- struct{}) {
+func (kps *KubernetesPrefixSource) start(notifyChan chan<- struct{}) {
 	clientSet := utils.FromContext(kps.ctx)
 	for {
-		pw, err := WatchPodCIDR(clientSet)
-		if err != nil {
-			logrus.Error(err)
-			continue
-		}
-		defer pw.Stop()
+		kps.watchSubnets(notifyChan, clientSet)
+	}
+}
 
-		sw, err := WatchServiceIpAddr(clientSet)
-		if err != nil {
-			logrus.Error(err)
-			continue
-		}
-		defer sw.Stop()
+func (kps *KubernetesPrefixSource) watchSubnets(notifyChan chan<- struct{}, clientSet kubernetes.Interface) {
+	pw, err := WatchPodCIDR(clientSet)
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+	defer pw.Stop()
 
-		var podSubnet, serviceSubnet string
-		for {
-			select {
-			case subnet, ok := <-pw.ResultChan():
-				if !ok {
-					return
-				}
-				podSubnet = subnet.String()
-			case subnet, ok := <-sw.ResultChan():
-				if !ok {
-					return
-				}
-				serviceSubnet = subnet.String()
+	sw, err := WatchServiceIpAddr(clientSet)
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+	defer sw.Stop()
+
+	kps.waitForSubnets(notifyChan, pw, sw)
+}
+
+func (kps *KubernetesPrefixSource) waitForSubnets(notifyChan chan<- struct{}, pw, sw *SubnetWatcher) {
+	var podSubnet, serviceSubnet string
+	for {
+		select {
+		case subnet, ok := <-pw.ResultChan():
+			if !ok {
+				return
 			}
-
-			prefixes := getPrefixes(podSubnet, serviceSubnet)
-			kps.prefixes.SetList(prefixes)
-			utils.Notify(notifyChan)
+			podSubnet = subnet.String()
+		case subnet, ok := <-sw.ResultChan():
+			if !ok {
+				return
+			}
+			serviceSubnet = subnet.String()
 		}
+
+		prefixes := getPrefixes(podSubnet, serviceSubnet)
+		kps.prefixes.SetList(prefixes)
+		utils.Notify(notifyChan)
 	}
 }
 

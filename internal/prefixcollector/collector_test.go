@@ -7,12 +7,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
+	"os"
 	"time"
 
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
-	"os"
 	"testing"
 )
 
@@ -21,12 +21,14 @@ type dummyPrefixSource struct {
 }
 
 const (
-	testFilePath  = "testFile.yaml"
-	configMapName = "test"
+	testFilePath      = "testFile.yaml"
+	configMapPath     = "./testfiles/configMap.yaml"
+	configMapName     = "test"
+	kubeConfigMapPath = "./testfiles/kubeAdmConfigMap.yaml"
 )
 
-func (d *dummyPrefixSource) Start(chan<- struct{}) {
-	panic("Implement me")
+func (d *dummyPrefixSource) Start(notifyChan chan<- struct{}) {
+	go func() { utils.Notify(notifyChan) }()
 }
 
 func (d *dummyPrefixSource) GetPrefixes() []string {
@@ -37,7 +39,7 @@ func newDummyPrefixSource(prefixes []string) *dummyPrefixSource {
 	return &dummyPrefixSource{prefixes}
 }
 
-func TestCollector(t *testing.T) {
+func TestCollectorWithDummySources(t *testing.T) {
 	sources := []prefixcollector.ExcludePrefixSource{
 		newDummyPrefixSource(
 			[]string{
@@ -48,7 +50,7 @@ func TestCollector(t *testing.T) {
 		),
 		newDummyPrefixSource(
 			[]string{
-				"127.0.3.1/16",
+				"127.0.3.1/18",
 				"134.56.0.1/8",
 				"168.92.0.1/16",
 			},
@@ -66,29 +68,51 @@ func TestCollector(t *testing.T) {
 }
 
 func TestKubeAdmConfigSource(t *testing.T) {
-	panic("implement me")
+	expectedResult := []string{
+		"10.244.0.0/16",
+		"10.96.0.0/12",
+	}
+
+	ctx := createConfigMap(t, prefixcollector.KubeNamespace, kubeConfigMapPath)
+
+	configMapSource := prefixcollector.
+		NewKubeAdmPrefixSource(ctx)
+	options := prefixcollector.WithSources([]prefixcollector.ExcludePrefixSource{configMapSource})
+	testCollector(t, expectedResult, options, prefixcollector.WithFilePath(testFilePath))
 }
 
 func TestConfigMapSource(t *testing.T) {
-	ctx := context.Background()
-	clientSet := fake.NewSimpleClientset()
-	configMap := getConfigMap(t)
+	expectedResult := []string{
+		"168.0.0.0/10",
+		"1.0.0.0/11",
+	}
 
-	ctx = context.WithValue(ctx, utils.ClientSetKey, clientSet)
-	_, _ = clientSet.CoreV1().
-		ConfigMaps(prefixcollector.DefaultConfigMapNamespace).
-		Create(ctx, configMap, metav1.CreateOptions{})
+	ctx := createConfigMap(t, prefixcollector.DefaultConfigMapNamespace, configMapPath)
 
 	configMapSource := prefixcollector.
 		NewConfigMapPrefixSource(ctx, configMapName, prefixcollector.DefaultConfigMapNamespace)
 	options := prefixcollector.WithSources([]prefixcollector.ExcludePrefixSource{configMapSource})
-	testCollector(t, []string{"168.0.0.0/10", "1.0.0.0/11"}, options, prefixcollector.WithFilePath(testFilePath))
+	testCollector(t, expectedResult, options, prefixcollector.WithFilePath(testFilePath))
+}
+
+func createConfigMap(t *testing.T, namespace, configPath string) context.Context {
+	ctx := context.Background()
+	clientSet := fake.NewSimpleClientset()
+	configMap := getConfigMap(t, configPath)
+
+	ctx = context.WithValue(ctx, utils.ClientSetKey, clientSet)
+	_, _ = clientSet.CoreV1().
+		ConfigMaps(namespace).
+		Create(ctx, configMap, metav1.CreateOptions{})
+
+	return ctx
 }
 
 func testCollector(t *testing.T, expectedResult []string, options ...prefixcollector.ExcludePrefixCollectorOption) {
 	collector := prefixcollector.NewExcludePrefixCollector(context.Background(), options...)
 	collector.Start()
-	<-time.After(time.Second)
+	defer func() { _ = os.Remove(testFilePath) }()
+	<-time.After(time.Second * 2)
 	bytes, err := ioutil.ReadFile(testFilePath)
 	if err != nil {
 		t.Fatal("Error reading test file: ", err)
@@ -100,11 +124,9 @@ func testCollector(t *testing.T, expectedResult []string, options ...prefixcolle
 	}
 
 	assert.ElementsMatch(t, expectedResult, prefixes.PrefixesList)
-	_ = os.Remove(testFilePath)
 }
 
-func getConfigMap(t *testing.T) *v1.ConfigMap {
-	const filePath = "./testfiles/userfile.yaml"
+func getConfigMap(t *testing.T, filePath string) *v1.ConfigMap {
 	destination := v1.ConfigMap{}
 	bytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
