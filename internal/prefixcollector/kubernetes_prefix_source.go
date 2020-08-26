@@ -23,22 +23,24 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+// KubernetesPrefixSource is excluded prefix source, which get prefixes
+// from Kubernetes pods and services addresses
 type KubernetesPrefixSource struct {
 	prefixes utils.SynchronizedPrefixesContainer
 	ctx      context.Context
 }
 
-// Starts monitoring Kubernetes pods and services. Notifies notifyChan after reading prefixes.
+// Start - starts monitoring Kubernetes pods and services. Notifies notifyChan after reading prefixes.
 func (kps *KubernetesPrefixSource) Start(notifyChan chan<- struct{}) {
 	go kps.start(notifyChan)
 }
 
-// Get prefixes from source
+// GetPrefixes returns prefixes from source
 func (kps *KubernetesPrefixSource) GetPrefixes() []string {
 	return kps.prefixes.GetList()
 }
 
-// Creates KubernetesPrefixSource
+// NewKubernetesPrefixSource creates KubernetesPrefixSource
 func NewKubernetesPrefixSource(ctx context.Context) *KubernetesPrefixSource {
 	kps := &KubernetesPrefixSource{
 		ctx: ctx,
@@ -62,7 +64,7 @@ func (kps *KubernetesPrefixSource) watchSubnets(notifyChan chan<- struct{}, clie
 	}
 	defer pw.Stop()
 
-	sw, err := watchServiceIpAddr(clientSet)
+	sw, err := watchServiceIPAddr(clientSet)
 	if err != nil {
 		logrus.Error(err)
 		return

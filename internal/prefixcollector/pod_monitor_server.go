@@ -85,7 +85,7 @@ func watchPodCIDR(clientset kubernetes.Interface) (*SubnetWatcher, error) {
 	return WatchSubnet(nodeWatcher, keyFunc, subnetFunc)
 }
 
-func watchServiceIpAddr(cs kubernetes.Interface) (*SubnetWatcher, error) {
+func watchServiceIPAddr(cs kubernetes.Interface) (*SubnetWatcher, error) {
 	serviceWatcher, err := newServiceWatcher(cs)
 	if err != nil {
 		logrus.Error(err)
@@ -190,7 +190,7 @@ func WatchSubnet(resourceWatcher watch.Interface, keyFunc keyFunc, subnetFunc su
 	stopCh := make(chan struct{})
 
 	cache := map[string]string{}
-	var lastIpNet *net.IPNet
+	var lastIPNet *net.IPNet
 
 	go func() {
 		for {
@@ -224,17 +224,17 @@ func WatchSubnet(resourceWatcher watch.Interface, keyFunc keyFunc, subnetFunc su
 				}
 				cache[key] = ipNet.String()
 
-				if lastIpNet == nil {
-					lastIpNet = ipNet
-					subnetCh <- lastIpNet
+				if lastIPNet == nil {
+					lastIPNet = ipNet
+					subnetCh <- lastIPNet
 					continue
 				}
 
-				newIPNet := maxCommonPrefixSubnet(lastIpNet, ipNet)
-				if newIPNet.String() != lastIpNet.String() {
-					logrus.Infof("Subnet extended from %v to %v", lastIpNet, newIPNet)
-					lastIpNet = newIPNet
-					subnetCh <- lastIpNet
+				newIPNet := maxCommonPrefixSubnet(lastIPNet, ipNet)
+				if newIPNet.String() != lastIPNet.String() {
+					logrus.Infof("Subnet extended from %v to %v", lastIPNet, newIPNet)
+					lastIPNet = newIPNet
+					subnetCh <- lastIPNet
 					continue
 				}
 			}

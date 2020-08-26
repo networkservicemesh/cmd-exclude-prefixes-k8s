@@ -36,25 +36,25 @@ const (
 	bufferSize = 4096
 )
 
-// KubeAdm ConfigMap excluded prefix source
+// KubeAdmPrefixSource is KubeAdm ConfigMap excluded prefix source
 type KubeAdmPrefixSource struct {
 	configMapInterface v1.ConfigMapInterface
 	prefixes           utils.SynchronizedPrefixesContainer
 	ctx                context.Context
 }
 
-// Starts monitoring KubeAdm ConfigMap's properties "PodSubnet" and "ServiceSubnet".
+// Start - starts monitoring KubeAdm ConfigMap's properties "PodSubnet" and "ServiceSubnet".
 // Notifies notifyChan after reading prefixes.
 func (cmps *KubeAdmPrefixSource) Start(notifyChan chan<- struct{}) {
 	go cmps.watchKubeAdmConfigMap(notifyChan)
 }
 
-// Get prefixes from source
+// GetPrefixes returns prefixes from source
 func (kaps *KubeAdmPrefixSource) GetPrefixes() []string {
 	return kaps.prefixes.GetList()
 }
 
-// Creates KubeAdmPrefixSource
+// NewKubeAdmPrefixSource creates KubeAdmPrefixSource
 func NewKubeAdmPrefixSource(ctx context.Context) *KubeAdmPrefixSource {
 	clientSet := utils.FromContext(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(KubeNamespace)

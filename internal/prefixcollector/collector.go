@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package containing excluded prefix collector, prefix sources and functions working with them
+// Package prefixcollector contains excluded prefix collector, prefix sources and functions working with them
 package prefixcollector
 
 import (
@@ -27,13 +27,13 @@ import (
 	"strings"
 )
 
-// Source of excluded prefixes
+// ExcludePrefixSource is source of excluded prefixes
 type ExcludePrefixSource interface {
 	Start(chan<- struct{})
 	GetPrefixes() []string
 }
 
-// Service, collecting excluded prefixes from list of ExcludePrefixSource
+// ExcludePrefixCollector is service, collecting excluded prefixes from list of ExcludePrefixSource
 // and environment variable "EXCLUDED_PREFIXES"
 // and writing result to outputFilePath in yaml format
 type ExcludePrefixCollector struct {
@@ -43,6 +43,7 @@ type ExcludePrefixCollector struct {
 	sources             []ExcludePrefixSource
 }
 
+// ExcludePrefixCollectorOption is functional option for ExcludePrefixCollector
 type ExcludePrefixCollectorOption func(*ExcludePrefixCollector)
 
 const (
@@ -53,28 +54,29 @@ const (
 	defaultConfigMapName      = "nsm-config-volume"
 )
 
-// Returns ExcludePrefixCollectorOption, that set filePath as collector's outputFilePath
+// WithFilePath returns ExcludePrefixCollectorOption, that set filePath as collector's outputFilePath
 func WithFilePath(filePath string) ExcludePrefixCollectorOption {
 	return func(collector *ExcludePrefixCollector) {
 		collector.outputFilePath = filePath
 	}
 }
 
-// Returns ExcludePrefixCollectorOption, that set notifyChan as collector's notifyChan
+// WithNotifyChan returns ExcludePrefixCollectorOption, that set notifyChan as collector's notifyChan
 func WithNotifyChan(notifyChan chan struct{}) ExcludePrefixCollectorOption {
 	return func(collector *ExcludePrefixCollector) {
 		collector.notifyChan = notifyChan
 	}
 }
 
-// Returns ExcludePrefixCollectorOption, that set sources as collector's prefix sources
+// WithSources returns ExcludePrefixCollectorOption, that set sources as collector's prefix sources
 func WithSources(sources []ExcludePrefixSource) ExcludePrefixCollectorOption {
 	return func(collector *ExcludePrefixCollector) {
 		collector.sources = sources
 	}
 }
 
-// Creates ExcludePrefixCollector and applies every ExcludePrefixCollectorOption to it
+// NewExcludePrefixCollector creates ExcludePrefixCollector
+// and applies every ExcludePrefixCollectorOption to it
 func NewExcludePrefixCollector(ctx context.Context, options ...ExcludePrefixCollectorOption) *ExcludePrefixCollector {
 	collector := &ExcludePrefixCollector{
 		baseExcludePrefixes: getPrefixesFromEnv(),
@@ -132,7 +134,7 @@ func getPrefixesFromEnv() []string {
 	return envPrefixes
 }
 
-// Starts every source, then begin monitoring notifyChan.
+// Start - starts every source, then begin monitoring notifyChan.
 // Updates exclude prefix file after every notification.
 func (epc *ExcludePrefixCollector) Start() {
 	for _, source := range epc.sources {

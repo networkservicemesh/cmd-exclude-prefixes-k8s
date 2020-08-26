@@ -24,8 +24,10 @@ import (
 	"os"
 )
 
+type clientSetKeyType string
+
 // ClientSet key in context map
-const ClientSetKey = "clientsetKey"
+const ClientSetKey clientSetKeyType = "clientsetKey"
 
 // Struct containing prefixes list
 type Prefixes struct {
