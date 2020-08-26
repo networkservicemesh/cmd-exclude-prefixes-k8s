@@ -19,9 +19,10 @@ package utils
 
 import (
 	"context"
+	"os"
+
 	"github.com/ghodss/yaml"
 	"k8s.io/client-go/kubernetes"
-	"os"
 )
 
 type clientSetKeyType string

@@ -20,11 +20,13 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
-	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/sirupsen/logrus"
+
+	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 )
 
 // ExcludePrefixSource is source of excluded prefixes

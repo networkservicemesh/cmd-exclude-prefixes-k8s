@@ -19,11 +19,13 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
+	"time"
+
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"time"
+
+	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 )
 
 // ConfigMapPrefixSource is Kubernetes ConfigMap excluded prefix source

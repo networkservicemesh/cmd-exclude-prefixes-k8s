@@ -17,10 +17,11 @@
 package prefixcollector
 
 import (
-	"github.com/sirupsen/logrus"
 	"math/big"
 	"net"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
 // ExcludePrefixPool is prefix pool for excluded prefixes
