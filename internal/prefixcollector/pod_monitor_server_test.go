@@ -72,7 +72,7 @@ func (d *DummyWatcher) ResultChan() <-chan watch.Event {
 	return d.eventCh
 }
 
-func (d *DummyWatcher) send(t watch.EventType, dr *dummyResource) {
+func (d *DummyWatcher) send(t watch.EventType, dr runtime.Object) {
 	d.eventCh <- watch.Event{
 		Type:   t,
 		Object: dr,

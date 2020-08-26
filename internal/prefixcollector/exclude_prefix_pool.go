@@ -23,11 +23,13 @@ import (
 	"sync"
 )
 
+// ExcludePrefixPool is prefix pool for excluded prefixes
 type ExcludePrefixPool struct {
 	lock     sync.RWMutex
 	prefixes []string
 }
 
+// NewExcludePrefixPool returns new ExcludePrefixPool
 func NewExcludePrefixPool(prefixes ...string) (*ExcludePrefixPool, error) {
 	pool := &ExcludePrefixPool{
 		prefixes: make([]string, 0, len(prefixes)),
@@ -39,6 +41,7 @@ func NewExcludePrefixPool(prefixes ...string) (*ExcludePrefixPool, error) {
 	return pool, nil
 }
 
+// Add - adds prefixes to prefix pool
 func (impl *ExcludePrefixPool) Add(prefixesToAdd []string) error {
 	prefixesToAdd, _ = impl.deleteEqualPrefixes(prefixesToAdd)
 	impl.lock.Lock()
@@ -122,6 +125,7 @@ func toIP(ipInt *big.Int, bits int) net.IP {
 	return ret
 }
 
+// GetPrefixes returns pool prefixes
 func (impl *ExcludePrefixPool) GetPrefixes() []string {
 	impl.lock.Lock()
 	copyArray := make([]string, len(impl.prefixes))
