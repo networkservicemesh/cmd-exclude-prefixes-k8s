@@ -8,6 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	"os"
+	"path/filepath"
 	"time"
 
 	"cmd-exclude-prefixes-k8s/internal/utils"
@@ -128,7 +129,7 @@ func testCollector(t *testing.T, expectedResult []string, options ...prefixcolle
 
 func getConfigMap(t *testing.T, filePath string) *v1.ConfigMap {
 	destination := v1.ConfigMap{}
-	bytes, err := ioutil.ReadFile(filePath)
+	bytes, err := ioutil.ReadFile(filepath.Clean(filePath))
 	if err != nil {
 		t.Fatal("Error reading user config map: ", err)
 	}

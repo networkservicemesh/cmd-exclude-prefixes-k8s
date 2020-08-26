@@ -29,31 +29,37 @@ import (
 )
 
 const (
+	// KubeAdm ConfigMap namespace
 	KubeNamespace = "kube-system"
-	KubeName      = "kubeadm-config"
-	bufferSize    = 4096
+	// KubeAdm ConfigMap name
+	KubeName   = "kubeadm-config"
+	bufferSize = 4096
 )
 
+// KubeAdm ConfigMap excluded prefix source
 type KubeAdmPrefixSource struct {
 	configMapInterface v1.ConfigMapInterface
-	prefixes           utils.SynchronizedPrefixList
+	prefixes           utils.SynchronizedPrefixesContainer
 	ctx                context.Context
 }
 
+// Starts monitoring KubeAdm ConfigMap's properties "PodSubnet" and "ServiceSubnet".
+// Notifies notifyChan after reading prefixes.
 func (cmps *KubeAdmPrefixSource) Start(notifyChan chan<- struct{}) {
 	go cmps.watchKubeAdmConfigMap(notifyChan)
 }
 
+// Get prefixes from source
 func (kaps *KubeAdmPrefixSource) GetPrefixes() []string {
 	return kaps.prefixes.GetList()
 }
 
+// Creates KubeAdmPrefixSource
 func NewKubeAdmPrefixSource(ctx context.Context) *KubeAdmPrefixSource {
 	clientSet := utils.FromContext(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(KubeNamespace)
 	kaps := KubeAdmPrefixSource{
 		configMapInterface: configMapInterface,
-		prefixes:           utils.NewSynchronizedPrefixListImpl(),
 		ctx:                ctx,
 	}
 

@@ -47,7 +47,7 @@ func (s *SubnetWatcher) ResultChan() <-chan *net.IPNet {
 type keyFunc func(event watch.Event) (string, error)
 type subnetFunc func(event watch.Event) (*net.IPNet, error)
 
-func WatchPodCIDR(clientset kubernetes.Interface) (*SubnetWatcher, error) {
+func watchPodCIDR(clientset kubernetes.Interface) (*SubnetWatcher, error) {
 	nodeWatcher, err := clientset.CoreV1().Nodes().Watch(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		logrus.Error(err)
@@ -82,10 +82,10 @@ func WatchPodCIDR(clientset kubernetes.Interface) (*SubnetWatcher, error) {
 		return ipNet, nil
 	}
 
-	return watchSubnet(nodeWatcher, keyFunc, subnetFunc)
+	return WatchSubnet(nodeWatcher, keyFunc, subnetFunc)
 }
 
-func WatchServiceIpAddr(cs kubernetes.Interface) (*SubnetWatcher, error) {
+func watchServiceIpAddr(cs kubernetes.Interface) (*SubnetWatcher, error) {
 	serviceWatcher, err := newServiceWatcher(cs)
 	if err != nil {
 		logrus.Error(err)
@@ -114,13 +114,13 @@ func WatchServiceIpAddr(cs kubernetes.Interface) (*SubnetWatcher, error) {
 			return nil, err
 		}
 		ipAddr := service.Spec.ClusterIP
-		return IpToNet(net.ParseIP(ipAddr)), nil
+		return ipToNet(net.ParseIP(ipAddr)), nil
 	}
 
-	return watchSubnet(serviceWatcher, keyFunc, subnetFunc)
+	return WatchSubnet(serviceWatcher, keyFunc, subnetFunc)
 }
 
-func IpToNet(ipAddr net.IP) *net.IPNet {
+func ipToNet(ipAddr net.IP) *net.IPNet {
 	mask := net.CIDRMask(len(ipAddr)*8, len(ipAddr)*8)
 	return &net.IPNet{IP: ipAddr, Mask: mask}
 }
@@ -185,7 +185,7 @@ func getNamespaces(cs kubernetes.Interface) ([]string, error) {
 	return rv, nil
 }
 
-func watchSubnet(resourceWatcher watch.Interface, keyFunc keyFunc, subnetFunc subnetFunc) (*SubnetWatcher, error) {
+func WatchSubnet(resourceWatcher watch.Interface, keyFunc keyFunc, subnetFunc subnetFunc) (*SubnetWatcher, error) {
 	subnetCh := make(chan *net.IPNet, 10)
 	stopCh := make(chan struct{})
 
@@ -230,10 +230,10 @@ func watchSubnet(resourceWatcher watch.Interface, keyFunc keyFunc, subnetFunc su
 					continue
 				}
 
-				newIpNet := MaxCommonPrefixSubnet(lastIpNet, ipNet)
-				if newIpNet.String() != lastIpNet.String() {
-					logrus.Infof("Subnet extended from %v to %v", lastIpNet, newIpNet)
-					lastIpNet = newIpNet
+				newIPNet := maxCommonPrefixSubnet(lastIpNet, ipNet)
+				if newIPNet.String() != lastIpNet.String() {
+					logrus.Infof("Subnet extended from %v to %v", lastIpNet, newIPNet)
+					lastIpNet = newIPNet
 					subnetCh <- lastIpNet
 					continue
 				}
@@ -247,7 +247,7 @@ func watchSubnet(resourceWatcher watch.Interface, keyFunc keyFunc, subnetFunc su
 	}, nil
 }
 
-func MaxCommonPrefixSubnet(s1, s2 *net.IPNet) *net.IPNet {
+func maxCommonPrefixSubnet(s1, s2 *net.IPNet) *net.IPNet {
 	rawIP1, n1 := fromIP(s1.IP)
 	rawIP2, _ := fromIP(s2.IP)
 

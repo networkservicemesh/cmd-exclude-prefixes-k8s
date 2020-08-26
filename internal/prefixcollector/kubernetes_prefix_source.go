@@ -24,22 +24,24 @@ import (
 )
 
 type KubernetesPrefixSource struct {
-	prefixes utils.SynchronizedPrefixList
+	prefixes utils.SynchronizedPrefixesContainer
 	ctx      context.Context
 }
 
+// Starts monitoring Kubernetes pods and services. Notifies notifyChan after reading prefixes.
 func (kps *KubernetesPrefixSource) Start(notifyChan chan<- struct{}) {
 	go kps.start(notifyChan)
 }
 
+// Get prefixes from source
 func (kps *KubernetesPrefixSource) GetPrefixes() []string {
 	return kps.prefixes.GetList()
 }
 
+// Creates KubernetesPrefixSource
 func NewKubernetesPrefixSource(ctx context.Context) *KubernetesPrefixSource {
 	kps := &KubernetesPrefixSource{
-		prefixes: utils.NewSynchronizedPrefixListImpl(),
-		ctx:      ctx,
+		ctx: ctx,
 	}
 
 	return kps
@@ -53,14 +55,14 @@ func (kps *KubernetesPrefixSource) start(notifyChan chan<- struct{}) {
 }
 
 func (kps *KubernetesPrefixSource) watchSubnets(notifyChan chan<- struct{}, clientSet kubernetes.Interface) {
-	pw, err := WatchPodCIDR(clientSet)
+	pw, err := watchPodCIDR(clientSet)
 	if err != nil {
 		logrus.Error(err)
 		return
 	}
 	defer pw.Stop()
 
-	sw, err := WatchServiceIpAddr(clientSet)
+	sw, err := watchServiceIpAddr(clientSet)
 	if err != nil {
 		logrus.Error(err)
 		return

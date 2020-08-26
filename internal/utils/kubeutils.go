@@ -24,6 +24,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// Creates ClientSetConfig from config file.
+// If config file path not provided via env variable KUBECONFIG, default path "HOME/.kube/config" will be used
 func NewClientSetConfig() (*rest.Config, error) {
 	configPath := os.Getenv("KUBECONFIG")
 	if configPath == "" {

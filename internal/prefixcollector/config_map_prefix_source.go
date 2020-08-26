@@ -26,14 +26,16 @@ import (
 	"time"
 )
 
+// Kubernetes ConfigMap excluded prefix source
 type ConfigMapPrefixSource struct {
 	configMapName      string
 	configMapNameSpace string
 	configMapInterface v1.ConfigMapInterface
-	prefixes           utils.SynchronizedPrefixList
+	prefixes           utils.SynchronizedPrefixesContainer
 	ctx                context.Context
 }
 
+// Creates ConfigMapPrefixSource
 func NewConfigMapPrefixSource(ctx context.Context, name, namespace string) *ConfigMapPrefixSource {
 	clientSet := utils.FromContext(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(namespace)
@@ -41,17 +43,18 @@ func NewConfigMapPrefixSource(ctx context.Context, name, namespace string) *Conf
 		configMapName:      name,
 		configMapNameSpace: namespace,
 		configMapInterface: configMapInterface,
-		prefixes:           utils.NewSynchronizedPrefixListImpl(),
 		ctx:                ctx,
 	}
 
 	return &cmps
 }
 
+// Get prefixes from source
 func (cmps *ConfigMapPrefixSource) GetPrefixes() []string {
 	return cmps.prefixes.GetList()
 }
 
+// Starts monitoring ConfigMap. Notifies notifyChan after reading prefixes.
 func (cmps *ConfigMapPrefixSource) Start(notifyChan chan<- struct{}) {
 	go cmps.watchConfigMap(notifyChan)
 }

@@ -14,6 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package containing different util functions for excluded prefix collector and prefix sources
 package utils
 
 import (
@@ -23,16 +24,20 @@ import (
 	"os"
 )
 
+// ClientSet key in context map
 const ClientSetKey = "clientsetKey"
 
+// Struct containing prefixes list
 type Prefixes struct {
 	PrefixesList []string `json:"Prefixes"`
 }
 
+// Returns ClientSet from context ctx
 func FromContext(ctx context.Context) kubernetes.Interface {
 	return ctx.Value(ClientSetKey).(kubernetes.Interface)
 }
 
+// Converts list of prefixes to yaml file
 func PrefixesToYaml(prefixesList []string) ([]byte, error) {
 	source := Prefixes{prefixesList}
 
@@ -44,6 +49,7 @@ func PrefixesToYaml(prefixesList []string) ([]byte, error) {
 	return bytes, nil
 }
 
+// Converts yaml file to Prefixes
 func YamlToPrefixes(bytes []byte) (Prefixes, error) {
 	destination := Prefixes{}
 	err := yaml.Unmarshal(bytes, &destination)
@@ -54,10 +60,12 @@ func YamlToPrefixes(bytes []byte) (Prefixes, error) {
 	return destination, nil
 }
 
+// Sends empty struct to notifyChan
 func Notify(notifyChan chan<- struct{}) {
 	notifyChan <- struct{}{}
 }
 
+// Creates directory path if it doesn't exist
 func CreateDirIfNotExists(path string) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		if err == nil {

@@ -130,10 +130,10 @@ func (impl *ExcludePrefixPool) GetPrefixes() []string {
 	return copyArray
 }
 
-func intersect(first, second *net.IPNet) (bool, bool) {
+func intersect(first, second *net.IPNet) (widerContains bool, firstIsBigger bool) {
 	f, _ := first.Mask.Size()
 	s, _ := second.Mask.Size()
-	firstIsBigger := false
+	firstIsBigger = false
 
 	var widerRange, narrowerRange *net.IPNet
 	if f < s {
@@ -143,7 +143,8 @@ func intersect(first, second *net.IPNet) (bool, bool) {
 		widerRange, narrowerRange = second, first
 	}
 
-	return widerRange.Contains(narrowerRange.IP), firstIsBigger
+	widerContains = widerRange.Contains(narrowerRange.IP)
+	return
 }
 
 func validatePrefixes(prefixes []string) error {
