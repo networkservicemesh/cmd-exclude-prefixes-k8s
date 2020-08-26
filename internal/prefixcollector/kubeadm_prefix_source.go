@@ -29,9 +29,9 @@ import (
 )
 
 const (
-	// KubeAdm ConfigMap namespace
+	// KubeNamespace is KubeAdm ConfigMap namespace
 	KubeNamespace = "kube-system"
-	// KubeAdm ConfigMap name
+	// KubeName is KubeAdm ConfigMap name
 	KubeName   = "kubeadm-config"
 	bufferSize = 4096
 )
@@ -45,8 +45,8 @@ type KubeAdmPrefixSource struct {
 
 // Start - starts monitoring KubeAdm ConfigMap's properties "PodSubnet" and "ServiceSubnet".
 // Notifies notifyChan after reading prefixes.
-func (cmps *KubeAdmPrefixSource) Start(notifyChan chan<- struct{}) {
-	go cmps.watchKubeAdmConfigMap(notifyChan)
+func (kaps *KubeAdmPrefixSource) Start(notifyChan chan<- struct{}) {
+	go kaps.watchKubeAdmConfigMap(notifyChan)
 }
 
 // GetPrefixes returns prefixes from source
@@ -66,11 +66,11 @@ func NewKubeAdmPrefixSource(ctx context.Context) *KubeAdmPrefixSource {
 	return &kaps
 }
 
-func (cmps *KubeAdmPrefixSource) watchKubeAdmConfigMap(notifyChan chan<- struct{}) {
+func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap(notifyChan chan<- struct{}) {
 	for {
-		clientSet := utils.FromContext(cmps.ctx)
+		clientSet := utils.FromContext(kaps.ctx)
 		kubeadmConfig, err := clientSet.CoreV1().ConfigMaps(KubeNamespace).
-			Get(cmps.ctx, KubeName, metav1.GetOptions{})
+			Get(kaps.ctx, KubeName, metav1.GetOptions{})
 		if err != nil {
 			logrus.Error(err)
 			continue
@@ -94,7 +94,7 @@ func (cmps *KubeAdmPrefixSource) watchKubeAdmConfigMap(notifyChan chan<- struct{
 			logrus.Error("ClusterConfiguration.Networking.ServiceSubnet is empty")
 		}
 
-		cmps.prefixes.SetList([]string{
+		kaps.prefixes.SetList([]string{
 			podSubnet,
 			serviceSubnet,
 		})

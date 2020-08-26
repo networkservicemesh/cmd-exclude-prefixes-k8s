@@ -31,15 +31,18 @@ import (
 	"math/big"
 )
 
+// SubnetWatcher is watcher for kubernetes nodes and services subnets.
 type SubnetWatcher struct {
 	subnetCh <-chan *net.IPNet
 	stopCh   chan struct{}
 }
 
+// Stop closes stop channel of SubnetWatcher
 func (s *SubnetWatcher) Stop() {
 	close(s.stopCh)
 }
 
+// ResultChan returns channel of subnets
 func (s *SubnetWatcher) ResultChan() <-chan *net.IPNet {
 	return s.subnetCh
 }
@@ -185,6 +188,8 @@ func getNamespaces(cs kubernetes.Interface) ([]string, error) {
 	return rv, nil
 }
 
+// WatchSubnet waits for subnets from resourceWatcher, gets subnetwork from watch.Event using subnetFunc.
+// All subnets received from resourceWatcher will be forwarded to subnetCh of returned SubnetWatcher.
 func WatchSubnet(resourceWatcher watch.Interface, keyFunc keyFunc, subnetFunc subnetFunc) (*SubnetWatcher, error) {
 	subnetCh := make(chan *net.IPNet, 10)
 	stopCh := make(chan struct{})

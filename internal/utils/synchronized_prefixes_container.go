@@ -18,20 +18,20 @@ package utils
 
 import "sync"
 
-// Container with synchronized getter and setter
+// SynchronizedPrefixesContainer - container with synchronized getter and setter
 type SynchronizedPrefixesContainer struct {
 	lock     sync.Mutex
 	prefixes []string
 }
 
-// Get prefixes list
+// GetList returns prefixes list
 func (s *SynchronizedPrefixesContainer) GetList() []string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.prefixes
 }
 
-// Set prefixes list
+// SetList sets prefixes list
 func (s *SynchronizedPrefixesContainer) SetList(list []string) {
 	s.lock.Lock()
 	defer s.lock.Unlock()

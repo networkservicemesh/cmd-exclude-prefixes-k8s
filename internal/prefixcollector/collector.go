@@ -47,7 +47,7 @@ type ExcludePrefixCollector struct {
 type ExcludePrefixCollectorOption func(*ExcludePrefixCollector)
 
 const (
-	// Default namespace of kubernetes ConfigMap
+	// DefaultConfigMapNamespace is default namespace of kubernetes ConfigMap
 	DefaultConfigMapNamespace = "default"
 	excludedPrefixesEnv       = "EXCLUDED_PREFIXES"
 	configMapNamespaceEnv     = "CONFIG_NAMESPACE"
@@ -170,7 +170,7 @@ func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 		return
 	}
 
-	err = ioutil.WriteFile(epc.outputFilePath, data, 0644)
+	err = ioutil.WriteFile(epc.outputFilePath, data, 0600)
 	if err != nil {
 		logrus.Fatalf("Unable to write into file: %v", err.Error())
 	}

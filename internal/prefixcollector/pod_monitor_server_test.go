@@ -52,25 +52,27 @@ func subnetFuncDummy(event watch.Event) (*net.IPNet, error) {
 	return ipNet, nil
 }
 
-type dummyWatcher struct {
+// DummyWatcher is dummy implementation of watch.Interface
+type DummyWatcher struct {
 	eventCh chan watch.Event
 }
 
-func NewDummyWatcher() *dummyWatcher {
-	return &dummyWatcher{
+// NewDummyWatcher returns new DummyWatcher
+func NewDummyWatcher() *DummyWatcher {
+	return &DummyWatcher{
 		eventCh: make(chan watch.Event),
 	}
 }
 
-func (d *dummyWatcher) Stop() {
+func (d *DummyWatcher) Stop() {
 	panic("implement me")
 }
 
-func (d *dummyWatcher) ResultChan() <-chan watch.Event {
+func (d *DummyWatcher) ResultChan() <-chan watch.Event {
 	return d.eventCh
 }
 
-func (d *dummyWatcher) send(t watch.EventType, dr *dummyResource) {
+func (d *DummyWatcher) send(t watch.EventType, dr *dummyResource) {
 	d.eventCh <- watch.Event{
 		Type:   t,
 		Object: dr,

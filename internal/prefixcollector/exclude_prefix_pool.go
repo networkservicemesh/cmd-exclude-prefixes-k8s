@@ -130,7 +130,7 @@ func (impl *ExcludePrefixPool) GetPrefixes() []string {
 	return copyArray
 }
 
-func intersect(first, second *net.IPNet) (widerContains bool, firstIsBigger bool) {
+func intersect(first, second *net.IPNet) (widerContains, firstIsBigger bool) {
 	f, _ := first.Mask.Size()
 	s, _ := second.Mask.Size()
 	firstIsBigger = false
