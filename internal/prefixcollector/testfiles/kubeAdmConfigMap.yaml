@@ -1,3 +1,4 @@
+---
 apiVersion: v1
 data:
   ClusterConfiguration: |
@@ -43,9 +44,9 @@ metadata:
       fieldsType: FieldsV1
       fieldsV1:
         f:data:
-          .: { }
-          f:ClusterConfiguration: { }
-          f:ClusterStatus: { }
+          .: {}
+          f:ClusterConfiguration: {}
+          f:ClusterStatus: {}
       manager: kubeadm
       operation: Update
       time: "2020-08-19T06:44:41Z"
