@@ -19,7 +19,7 @@ package utils
 
 import (
 	"context"
-	"os"
+	"net"
 
 	"github.com/ghodss/yaml"
 	"k8s.io/client-go/kubernetes"
@@ -68,13 +68,11 @@ func Notify(notifyChan chan<- struct{}) {
 	notifyChan <- struct{}{}
 }
 
-// CreateDirIfNotExists creates directory named path if it doesn't exist
-func CreateDirIfNotExists(path string) error {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if err == nil {
-			return nil
-		}
-		if err := os.MkdirAll(path, os.ModePerm); err != nil {
+// ValidatePrefixes parses each prefix as a CIDR notation IP address and prefix length
+func ValidatePrefixes(prefixes []string) error {
+	for _, prefix := range prefixes {
+		_, _, err := net.ParseCIDR(prefix)
+		if err != nil {
 			return err
 		}
 	}

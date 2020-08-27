@@ -24,9 +24,9 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
-
-	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 )
+
+const configMapPrefixesKey = "excluded_prefixes.yaml"
 
 // ConfigMapPrefixSource is Kubernetes ConfigMap excluded prefix source
 type ConfigMapPrefixSource struct {
@@ -69,7 +69,7 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap(notifyChan chan<- struct{}) {
 			return
 		}
 
-		bytes := []byte(cm.Data[prefixpool.PrefixesFile])
+		bytes := []byte(cm.Data[configMapPrefixesKey])
 		prefixes, err := utils.YamlToPrefixes(bytes)
 		if err != nil {
 			logrus.Errorf("Can not unmarshal prefixes, err: %v", err.Error())

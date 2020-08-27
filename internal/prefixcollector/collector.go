@@ -24,6 +24,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/networkservicemesh/sdk/pkg/networkservice/common/excludedprefixes"
+
 	"github.com/sirupsen/logrus"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
@@ -90,7 +92,7 @@ func NewExcludePrefixCollector(ctx context.Context, options ...ExcludePrefixColl
 	}
 
 	if collector.outputFilePath == "" {
-		collector.outputFilePath = getDefaultOutputFilePath()
+		collector.outputFilePath = excludedprefixes.PrefixesFilePathDefault
 	}
 
 	if collector.sources == nil {
@@ -116,19 +118,12 @@ func getDefaultConfigMapNamespace() string {
 	return configMapNamespace
 }
 
-func getDefaultOutputFilePath() string {
-	if err := utils.CreateDirIfNotExists(prefixpool.NSMConfigDir); err != nil {
-		logrus.Fatalf("Failed to create exclude prefixes directory %v: %v", prefixpool.NSMConfigDir, err)
-	}
-	return prefixpool.PrefixesFilePathDefault
-}
-
 func getPrefixesFromEnv() []string {
 	var envPrefixes []string
 	excludedPrefixesEnv, ok := os.LookupEnv(excludedPrefixesEnv)
 	if ok {
 		envPrefixes = strings.Split(excludedPrefixesEnv, ",")
-		if err := validatePrefixes(envPrefixes); err == nil {
+		if err := utils.ValidatePrefixes(envPrefixes); err == nil {
 			return envPrefixes
 		}
 	}
@@ -152,7 +147,7 @@ func (epc *ExcludePrefixCollector) Start() {
 
 func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 	// error check skipped, because we've already validated baseExcludePrefixes
-	excludePrefixPool, _ := NewExcludePrefixPool(epc.baseExcludePrefixes...)
+	excludePrefixPool, _ := prefixpool.New(epc.baseExcludePrefixes...)
 
 	for _, v := range epc.sources {
 		sourcePrefixes := v.GetPrefixes()
@@ -160,7 +155,7 @@ func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 			continue
 		}
 
-		if err := excludePrefixPool.Add(v.GetPrefixes()); err != nil {
+		if err := excludePrefixPool.ReleaseExcludedPrefixes(v.GetPrefixes()); err != nil {
 			logrus.Error(err)
 			return
 		}
