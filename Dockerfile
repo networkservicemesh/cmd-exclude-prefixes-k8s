@@ -1,4 +1,4 @@
-FROM golang:1.13-buster as go
+FROM golang:1.14-buster as go
 ENV GO111MODULE=on
 ENV CGO_ENABLED=0
 ENV GOBIN=/bin
@@ -13,7 +13,7 @@ COPY go.mod go.sum ./
 COPY pkg ./pkg
 RUN go build ./pkg/imports
 COPY . .
-RUN go build -o /bin/exclude-prefixes .
+RUN go build -o /bin/registry-memory .
 
 FROM build as test
 CMD go test -test.v ./...
@@ -22,5 +22,5 @@ FROM test as debug
 CMD dlv -l :40000 --headless=true --api-version=2 test -test.v ./...
 
 FROM alpine as runtime
-COPY --from=build /bin/exclude-prefixes /bin/exclude-prefixes
-CMD /bin/exclude-prefixes
+COPY --from=build /bin/registry-memory /bin/registry-memory
+CMD /bin/registry-memory
