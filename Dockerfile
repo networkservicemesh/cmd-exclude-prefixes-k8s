@@ -13,7 +13,7 @@ COPY go.mod go.sum ./
 COPY pkg ./pkg
 RUN go build ./pkg/imports
 COPY . .
-RUN go build -o /bin/registry-memory .
+RUN go build -o /bin/exclude-prefixes .
 
 FROM build as test
 CMD go test -test.v ./...
@@ -22,5 +22,5 @@ FROM test as debug
 CMD dlv -l :40000 --headless=true --api-version=2 test -test.v ./...
 
 FROM alpine as runtime
-COPY --from=build /bin/registry-memory /bin/registry-memory
-CMD /bin/registry-memory
+COPY --from=build /bin/exclude-prefixes /bin/exclude-prefixes
+CMD /bin/exclude-prefixes
