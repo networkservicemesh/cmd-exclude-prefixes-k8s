@@ -3,15 +3,13 @@ module cmd-exclude-prefixes-k8s
 go 1.14
 
 require (
-	github.com/fsnotify/fsnotify v1.4.9
+	github.com/edwarnicke/dl v0.0.0-20200425181122-b4e16e4cb9fd // indirect
 	github.com/ghodss/yaml v1.0.0
-	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/networkservicemesh/sdk v0.0.0-20200827102544-4b23de9a2ad4
 	github.com/onsi/gomega v1.7.0
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.4.2
 	github.com/stretchr/testify v1.6.1
-	go.uber.org/goleak v1.0.1-0.20200717213025-100c34bdc9d6
 	k8s.io/api v0.18.1
 	k8s.io/apimachinery v0.18.2
 	k8s.io/client-go v0.18.1
