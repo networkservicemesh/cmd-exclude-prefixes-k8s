@@ -19,31 +19,35 @@ package prefixcollector_test
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"context"
-	"os"
-	"path/filepath"
-	"time"
-
 	"github.com/ghodss/yaml"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
+	"os"
+	"path/filepath"
+	"time"
 
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"io/ioutil"
 	"testing"
 )
 
+const (
+	configMapPath            = "./testfiles/configMap.yaml"
+	kubeConfigMapPath        = "./testfiles/kubeAdmConfigMap.yaml"
+	testExcludedPrefixesPath = "./testfiles/excludedPrefixes.yaml"
+	configMapName            = "test"
+)
+
 type dummyPrefixSource struct {
 	prefixes []string
 }
 
-const (
-	configMapPath     = "./testfiles/configMap.yaml"
-	kubeConfigMapPath = "./testfiles/kubeAdmConfigMap.yaml"
-	testFilePath      = "testFile.yaml"
-	configMapName     = "test"
-)
+type dummyListener struct {
+	notifyChan chan struct{}
+}
 
 func (d *dummyPrefixSource) Start(notifyChan chan<- struct{}) {
 	go func() { utils.Notify(notifyChan) }()
@@ -53,8 +57,18 @@ func (d *dummyPrefixSource) GetPrefixes() []string {
 	return d.prefixes
 }
 
+func (dl *dummyListener) Notify() {
+	utils.Notify(dl.notifyChan)
+}
+
 func newDummyPrefixSource(prefixes []string) *dummyPrefixSource {
 	return &dummyPrefixSource{prefixes}
+}
+
+func newDummyListener() *dummyListener {
+	return &dummyListener{
+		notifyChan: make(chan struct{}, 1),
+	}
 }
 
 func TestCollectorWithDummySources(t *testing.T) {
@@ -74,7 +88,6 @@ func TestCollectorWithDummySources(t *testing.T) {
 			},
 		),
 	}
-	sourcesOption := prefixcollector.WithSources(sources)
 
 	expectedResult := []string{
 		"127.0.0.0/16",
@@ -82,7 +95,7 @@ func TestCollectorWithDummySources(t *testing.T) {
 		"134.0.0.0/8",
 	}
 
-	testCollector(t, expectedResult, sourcesOption, prefixcollector.WithFilePath(testFilePath))
+	testCollector(t, expectedResult, sources)
 }
 
 func TestKubeAdmConfigSource(t *testing.T) {
@@ -92,11 +105,11 @@ func TestKubeAdmConfigSource(t *testing.T) {
 	}
 
 	ctx := createConfigMap(t, prefixcollector.KubeNamespace, kubeConfigMapPath)
+	sources := []prefixcollector.ExcludePrefixSource{
+		prefixcollector.NewKubeAdmPrefixSource(ctx),
+	}
 
-	configMapSource := prefixcollector.
-		NewKubeAdmPrefixSource(ctx)
-	options := prefixcollector.WithSources([]prefixcollector.ExcludePrefixSource{configMapSource})
-	testCollector(t, expectedResult, options, prefixcollector.WithFilePath(testFilePath))
+	testCollector(t, expectedResult, sources)
 }
 
 func TestConfigMapSource(t *testing.T) {
@@ -106,11 +119,11 @@ func TestConfigMapSource(t *testing.T) {
 	}
 
 	ctx := createConfigMap(t, prefixcollector.DefaultConfigMapNamespace, configMapPath)
+	sources := []prefixcollector.ExcludePrefixSource{
+		prefixcollector.NewConfigMapPrefixSource(ctx, configMapName, prefixcollector.DefaultConfigMapNamespace),
+	}
 
-	configMapSource := prefixcollector.
-		NewConfigMapPrefixSource(ctx, configMapName, prefixcollector.DefaultConfigMapNamespace)
-	options := prefixcollector.WithSources([]prefixcollector.ExcludePrefixSource{configMapSource})
-	testCollector(t, expectedResult, options, prefixcollector.WithFilePath(testFilePath))
+	testCollector(t, expectedResult, sources)
 }
 
 func createConfigMap(t *testing.T, namespace, configPath string) context.Context {
@@ -126,12 +139,24 @@ func createConfigMap(t *testing.T, namespace, configPath string) context.Context
 	return ctx
 }
 
-func testCollector(t *testing.T, expectedResult []string, options ...prefixcollector.ExcludePrefixCollectorOption) {
+func testCollector(t *testing.T, expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
+	options := []prefixcollector.ExcludePrefixCollectorOption{
+		prefixcollector.WithSources(sources),
+		prefixcollector.WithFilePath(testExcludedPrefixesPath),
+	}
+
 	collector := prefixcollector.NewExcludePrefixCollector(context.Background(), options...)
+	listener := newDummyListener()
+	collector.AddListener(listener)
 	collector.Start()
-	defer func() { _ = os.Remove(testFilePath) }()
-	<-time.After(time.Second * 2)
-	bytes, err := ioutil.ReadFile(testFilePath)
+
+	defer func() { _ = os.Remove(testExcludedPrefixesPath) }()
+
+	if err := waitForSources(listener.notifyChan, len(sources)); err != nil {
+		t.Fatal(err)
+	}
+
+	bytes, err := ioutil.ReadFile(testExcludedPrefixesPath)
 	if err != nil {
 		t.Fatal("Error reading test file: ", err)
 	}
@@ -142,6 +167,18 @@ func testCollector(t *testing.T, expectedResult []string, options ...prefixcolle
 	}
 
 	require.ElementsMatch(t, expectedResult, prefixes.PrefixesList)
+}
+
+func waitForSources(notifyChan <-chan struct{}, sourcesCount int) error {
+	for i := 0; i < sourcesCount; i++ {
+		select {
+		case <-notifyChan:
+		case <-time.After(time.Second * 5):
+			return errors.Errorf("Timeout waiting sources")
+		}
+	}
+
+	return nil
 }
 
 func getConfigMap(t *testing.T, filePath string) *v1.ConfigMap {
