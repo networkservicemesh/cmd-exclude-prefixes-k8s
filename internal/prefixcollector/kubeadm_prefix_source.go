@@ -50,7 +50,7 @@ func (kaps *KubeAdmPrefixSource) Start(notifyChan chan<- struct{}) {
 	go kaps.watchKubeAdmConfigMap(notifyChan)
 }
 
-// GetPrefixes returns prefixes from source
+// Prefixes returns prefixes from source
 func (kaps *KubeAdmPrefixSource) Prefixes() []string {
 	return kaps.prefixes.GetList()
 }
