@@ -19,15 +19,16 @@ package prefixcollector_test
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"context"
+	"os"
+	"path/filepath"
+	"time"
+
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
-	"os"
-	"path/filepath"
-	"time"
 
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"io/ioutil"
