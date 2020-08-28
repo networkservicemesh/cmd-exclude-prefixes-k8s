@@ -37,7 +37,7 @@ func (kps *KubernetesPrefixSource) Start(notifyChan chan<- struct{}) {
 }
 
 // GetPrefixes returns prefixes from source
-func (kps *KubernetesPrefixSource) GetPrefixes() []string {
+func (kps *KubernetesPrefixSource) Prefixes() []string {
 	return kps.prefixes.GetList()
 }
 

@@ -54,7 +54,7 @@ func (d *dummyPrefixSource) Start(notifyChan chan<- struct{}) {
 	go func() { utils.Notify(notifyChan) }()
 }
 
-func (d *dummyPrefixSource) GetPrefixes() []string {
+func (d *dummyPrefixSource) Prefixes() []string {
 	return d.prefixes
 }
 

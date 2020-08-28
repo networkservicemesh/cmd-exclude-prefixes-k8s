@@ -52,7 +52,7 @@ func NewConfigMapPrefixSource(ctx context.Context, name, namespace string) *Conf
 }
 
 // GetPrefixes returns prefixes from source
-func (cmps *ConfigMapPrefixSource) GetPrefixes() []string {
+func (cmps *ConfigMapPrefixSource) Prefixes() []string {
 	return cmps.prefixes.GetList()
 }
 

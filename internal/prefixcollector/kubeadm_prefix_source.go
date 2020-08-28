@@ -51,7 +51,7 @@ func (kaps *KubeAdmPrefixSource) Start(notifyChan chan<- struct{}) {
 }
 
 // GetPrefixes returns prefixes from source
-func (kaps *KubeAdmPrefixSource) GetPrefixes() []string {
+func (kaps *KubeAdmPrefixSource) Prefixes() []string {
 	return kaps.prefixes.GetList()
 }
 

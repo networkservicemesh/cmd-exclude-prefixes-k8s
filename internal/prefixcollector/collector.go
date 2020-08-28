@@ -40,7 +40,7 @@ type ExcludePrefixCollectorListener interface {
 // ExcludePrefixSource is source of excluded prefixes
 type ExcludePrefixSource interface {
 	Start(chan<- struct{})
-	GetPrefixes() []string
+	Prefixes() []string
 }
 
 // ExcludePrefixCollector is service, collecting excluded prefixes from list of ExcludePrefixSource
@@ -90,6 +90,7 @@ func WithSources(sources []ExcludePrefixSource) ExcludePrefixCollectorOption {
 // and applies every ExcludePrefixCollectorOption to it
 func NewExcludePrefixCollector(ctx context.Context, options ...ExcludePrefixCollectorOption) *ExcludePrefixCollector {
 	collector := &ExcludePrefixCollector{
+		outputFilePath:      excludedprefixes.PrefixesFilePathDefault,
 		baseExcludePrefixes: getPrefixesFromEnv(),
 		notifyChan:          make(chan struct{}, 1),
 	}
@@ -98,23 +99,15 @@ func NewExcludePrefixCollector(ctx context.Context, options ...ExcludePrefixColl
 		option(collector)
 	}
 
-	if collector.outputFilePath == "" {
-		collector.outputFilePath = excludedprefixes.PrefixesFilePathDefault
-	}
-
 	if collector.sources == nil {
-		collector.sources = getDefaultSources(ctx)
+		collector.sources = []ExcludePrefixSource{
+			NewKubeAdmPrefixSource(ctx),
+			NewKubernetesPrefixSource(ctx),
+			NewConfigMapPrefixSource(ctx, defaultConfigMapName, getDefaultConfigMapNamespace()),
+		}
 	}
 
 	return collector
-}
-
-func getDefaultSources(ctx context.Context) []ExcludePrefixSource {
-	return []ExcludePrefixSource{
-		NewKubeAdmPrefixSource(ctx),
-		NewKubernetesPrefixSource(ctx),
-		NewConfigMapPrefixSource(ctx, defaultConfigMapName, getDefaultConfigMapNamespace()),
-	}
 }
 
 func getDefaultConfigMapNamespace() string {
@@ -162,12 +155,12 @@ func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 	excludePrefixPool, _ := prefixpool.New(epc.baseExcludePrefixes...)
 
 	for _, v := range epc.sources {
-		sourcePrefixes := v.GetPrefixes()
+		sourcePrefixes := v.Prefixes()
 		if len(sourcePrefixes) == 0 {
 			continue
 		}
 
-		if err := excludePrefixPool.ReleaseExcludedPrefixes(v.GetPrefixes()); err != nil {
+		if err := excludePrefixPool.ReleaseExcludedPrefixes(v.Prefixes()); err != nil {
 			logrus.Error(err)
 			return
 		}
