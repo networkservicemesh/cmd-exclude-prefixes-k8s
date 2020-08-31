@@ -21,8 +21,10 @@ import (
 	"path/filepath"
 )
 
+// KubeConfigPath is path to kubeconfig path
 type KubeConfigPath string
 
+// Decode used to decode KubeConfigPath from ENV variable
 func (kcp *KubeConfigPath) Decode(value string) error {
 	if value == "" {
 		value = filepath.Join(os.Getenv("HOME"), ".kube", "config")

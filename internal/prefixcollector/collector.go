@@ -58,9 +58,8 @@ type ExcludePrefixCollectorOption func(*ExcludePrefixCollector)
 const (
 	// DefaultConfigMapNamespace is default namespace of kubernetes ConfigMap
 	DefaultConfigMapNamespace = "default"
-	excludedPrefixesEnv       = "EXCLUDED_PREFIXES"
-	configMapNamespaceEnv     = "CONFIG_MAP_NAMESPACE"
 	defaultConfigMapName      = "nsm-config-volume"
+	outputFilePermissions     = 0600
 )
 
 // WithFilePath returns ExcludePrefixCollectorOption, that set filePath as collector's outputFilePath
@@ -150,7 +149,7 @@ func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 		return
 	}
 
-	err = ioutil.WriteFile(epc.outputFilePath, data, 0600)
+	err = ioutil.WriteFile(epc.outputFilePath, data, outputFilePermissions)
 	if err != nil {
 		logrus.Fatalf("Unable to write into file: %v", err.Error())
 	}
