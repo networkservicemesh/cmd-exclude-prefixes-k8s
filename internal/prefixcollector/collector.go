@@ -20,11 +20,8 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"io/ioutil"
-	"os"
-	"strings"
-
 	"github.com/networkservicemesh/sdk/pkg/networkservice/common/excludedprefixes"
+	"io/ioutil"
 
 	"github.com/sirupsen/logrus"
 
@@ -61,7 +58,7 @@ const (
 	// DefaultConfigMapNamespace is default namespace of kubernetes ConfigMap
 	DefaultConfigMapNamespace = "default"
 	excludedPrefixesEnv       = "EXCLUDED_PREFIXES"
-	configMapNamespaceEnv     = "CONFIG_NAMESPACE"
+	configMapNamespaceEnv     = "CONFIG_MAP_NAMESPACE"
 	defaultConfigMapName      = "nsm-config-volume"
 )
 
@@ -80,7 +77,7 @@ func WithNotifyChan(notifyChan chan struct{}) ExcludePrefixCollectorOption {
 }
 
 // WithSources returns ExcludePrefixCollectorOption, that set sources as collector's prefix sources
-func WithSources(sources []ExcludePrefixSource) ExcludePrefixCollectorOption {
+func WithSources(sources ...ExcludePrefixSource) ExcludePrefixCollectorOption {
 	return func(collector *ExcludePrefixCollector) {
 		collector.sources = sources
 	}
@@ -88,10 +85,11 @@ func WithSources(sources []ExcludePrefixSource) ExcludePrefixCollectorOption {
 
 // NewExcludePrefixCollector creates ExcludePrefixCollector
 // and applies every ExcludePrefixCollectorOption to it
-func NewExcludePrefixCollector(ctx context.Context, options ...ExcludePrefixCollectorOption) *ExcludePrefixCollector {
+func NewExcludePrefixCollector(ctx context.Context, prefixesFromEnv []string,
+	configMapNamespace string, options ...ExcludePrefixCollectorOption) *ExcludePrefixCollector {
 	collector := &ExcludePrefixCollector{
 		outputFilePath:      excludedprefixes.PrefixesFilePathDefault,
-		baseExcludePrefixes: getPrefixesFromEnv(),
+		baseExcludePrefixes: utils.GetValidatedPrefixes(prefixesFromEnv),
 		notifyChan:          make(chan struct{}, 1),
 	}
 
@@ -103,32 +101,11 @@ func NewExcludePrefixCollector(ctx context.Context, options ...ExcludePrefixColl
 		collector.sources = []ExcludePrefixSource{
 			NewKubeAdmPrefixSource(ctx),
 			NewKubernetesPrefixSource(ctx),
-			NewConfigMapPrefixSource(ctx, defaultConfigMapName, getDefaultConfigMapNamespace()),
+			NewConfigMapPrefixSource(ctx, defaultConfigMapName, configMapNamespace),
 		}
 	}
 
 	return collector
-}
-
-func getDefaultConfigMapNamespace() string {
-	configMapNamespace := os.Getenv(configMapNamespaceEnv)
-	if configMapNamespace == "" {
-		configMapNamespace = DefaultConfigMapNamespace
-	}
-	return configMapNamespace
-}
-
-func getPrefixesFromEnv() []string {
-	var envPrefixes []string
-	excludedPrefixesEnv, ok := os.LookupEnv(excludedPrefixesEnv)
-	if ok {
-		envPrefixes = strings.Split(excludedPrefixesEnv, ",")
-		if err := utils.ValidatePrefixes(envPrefixes); err == nil {
-			return envPrefixes
-		}
-	}
-
-	return envPrefixes
 }
 
 // AddListener adds ExcludePrefixCollectorListener to collector's listeners list

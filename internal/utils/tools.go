@@ -68,14 +68,15 @@ func Notify(notifyChan chan<- struct{}) {
 	notifyChan <- struct{}{}
 }
 
-// ValidatePrefixes parses each prefix as a CIDR notation IP address and prefix length
-func ValidatePrefixes(prefixes []string) error {
+// GetValidatedPrefixes returns list of validated via CIDR notation parsing prefixes
+func GetValidatedPrefixes(prefixes []string) []string {
+	validatedPrefixes := make([]string, 0, len(prefixes))
 	for _, prefix := range prefixes {
 		_, _, err := net.ParseCIDR(prefix)
-		if err != nil {
-			return err
+		if err == nil {
+			validatedPrefixes = append(validatedPrefixes, prefix)
 		}
 	}
 
-	return nil
+	return validatedPrefixes
 }

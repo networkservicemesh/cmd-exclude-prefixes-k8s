@@ -142,11 +142,17 @@ func createConfigMap(t *testing.T, namespace, configPath string) context.Context
 
 func testCollector(t *testing.T, expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
 	options := []prefixcollector.ExcludePrefixCollectorOption{
-		prefixcollector.WithSources(sources),
+		prefixcollector.WithSources(sources...),
 		prefixcollector.WithFilePath(testExcludedPrefixesPath),
 	}
 
-	collector := prefixcollector.NewExcludePrefixCollector(context.Background(), options...)
+	collector := prefixcollector.NewExcludePrefixCollector(
+		context.Background(),
+		[]string{},
+		"",
+		options...,
+	)
+
 	listener := newDummyListener()
 	collector.AddListener(listener)
 	collector.Start()

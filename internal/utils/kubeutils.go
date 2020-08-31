@@ -19,18 +19,14 @@ package utils
 import (
 	"os"
 	"path/filepath"
-
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
-// NewClientSetConfig creates ClientSetConfig from config file.
-// If config file path not provided via env variable KUBECONFIG, default path "HOME/.kube/config" will be used
-func NewClientSetConfig() (*rest.Config, error) {
-	configPath := os.Getenv("KUBECONFIG")
-	if configPath == "" {
-		configPath = filepath.Join(os.Getenv("HOME"), ".kube", "config")
+type KubeConfigPath string
+
+func (kcp *KubeConfigPath) Decode(value string) error {
+	if value == "" {
+		value = filepath.Join(os.Getenv("HOME"), ".kube", "config")
 	}
-	config, err := clientcmd.BuildConfigFromFlags("", configPath)
-	return config, err
+	*kcp = KubeConfigPath(value)
+	return nil
 }

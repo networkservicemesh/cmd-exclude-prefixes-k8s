@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/ghodss/yaml v1.0.0
+	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/networkservicemesh/sdk v0.0.0-20200827102544-4b23de9a2ad4
 	github.com/onsi/gomega v1.7.0
 	github.com/pkg/errors v0.9.1
