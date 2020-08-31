@@ -162,7 +162,11 @@ func watchFile(t *testing.T, fileUpdatesRequired int) error {
 	if err != nil {
 		return err
 	}
-	defer watcher.Close()
+	defer func() {
+		if closeErr := watcher.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+	}()
 
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(1)
@@ -177,11 +181,11 @@ func watchFile(t *testing.T, fileUpdatesRequired int) error {
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					i++
 				}
-			case err, ok := <-watcher.Errors:
+			case watcherError, ok := <-watcher.Errors:
 				if !ok {
 					return
 				}
-				t.Error("error watching file:", err)
+				t.Error("error watching file:", watcherError)
 			}
 		}
 		waitGroup.Done()
