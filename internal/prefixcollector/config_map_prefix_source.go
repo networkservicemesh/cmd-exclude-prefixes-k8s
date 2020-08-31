@@ -38,7 +38,7 @@ type ConfigMapPrefixSource struct {
 }
 
 // NewConfigMapPrefixSource creates ConfigMapPrefixSource
-func NewConfigMapPrefixSource(ctx context.Context, name, namespace string) *ConfigMapPrefixSource {
+func NewConfigMapPrefixSource(ctx context.Context, notifyChan chan<- struct{}, name, namespace string) *ConfigMapPrefixSource {
 	clientSet := utils.FromContext(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(namespace)
 	cmps := ConfigMapPrefixSource{
@@ -48,17 +48,13 @@ func NewConfigMapPrefixSource(ctx context.Context, name, namespace string) *Conf
 		ctx:                ctx,
 	}
 
+	go cmps.watchConfigMap(notifyChan)
 	return &cmps
 }
 
 // Prefixes returns prefixes from source
 func (cmps *ConfigMapPrefixSource) Prefixes() []string {
 	return cmps.prefixes.GetList()
-}
-
-// Start - starts monitoring ConfigMap and notifies notifyChan after reading prefixes.
-func (cmps *ConfigMapPrefixSource) Start(notifyChan chan<- struct{}) {
-	go cmps.watchConfigMap(notifyChan)
 }
 
 func (cmps *ConfigMapPrefixSource) watchConfigMap(notifyChan chan<- struct{}) {

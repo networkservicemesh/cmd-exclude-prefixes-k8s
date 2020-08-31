@@ -31,7 +31,6 @@ import (
 
 // ExcludePrefixSource is source of excluded prefixes
 type ExcludePrefixSource interface {
-	Start(chan<- struct{})
 	Prefixes() []string
 }
 
@@ -72,11 +71,13 @@ func WithSources(sources ...ExcludePrefixSource) ExcludePrefixCollectorOption {
 // NewExcludePrefixCollector creates ExcludePrefixCollector
 // and applies every ExcludePrefixCollectorOption to it
 func NewExcludePrefixCollector(ctx context.Context, prefixesFromEnv []string,
-	configMapNamespace string, options ...ExcludePrefixCollectorOption) *ExcludePrefixCollector {
+	configMapNamespace string, notifyChan chan struct{},
+	options ...ExcludePrefixCollectorOption) *ExcludePrefixCollector {
+
 	collector := &ExcludePrefixCollector{
 		outputFilePath:      excludedprefixes.PrefixesFilePathDefault,
 		baseExcludePrefixes: utils.GetValidatedPrefixes(prefixesFromEnv),
-		notifyChan:          make(chan struct{}, 1),
+		notifyChan:          notifyChan,
 	}
 
 	for _, option := range options {
@@ -85,9 +86,9 @@ func NewExcludePrefixCollector(ctx context.Context, prefixesFromEnv []string,
 
 	if collector.sources == nil {
 		collector.sources = []ExcludePrefixSource{
-			NewKubeAdmPrefixSource(ctx),
-			NewKubernetesPrefixSource(ctx),
-			NewConfigMapPrefixSource(ctx, defaultConfigMapName, configMapNamespace),
+			NewKubeAdmPrefixSource(ctx, notifyChan),
+			NewKubernetesPrefixSource(ctx, notifyChan),
+			NewConfigMapPrefixSource(ctx, notifyChan, defaultConfigMapName, configMapNamespace),
 		}
 	}
 
@@ -97,10 +98,6 @@ func NewExcludePrefixCollector(ctx context.Context, prefixesFromEnv []string,
 // Start - starts every source, then begin monitoring notifyChan.
 // Updates exclude prefix file after every notification.
 func (epc *ExcludePrefixCollector) Start() {
-	for _, source := range epc.sources {
-		source.Start(epc.notifyChan)
-	}
-
 	go func() {
 		for range epc.notifyChan {
 			epc.updateExcludedPrefixesConfigmap()

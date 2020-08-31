@@ -45,10 +45,6 @@ type dummyPrefixSource struct {
 	prefixes []string
 }
 
-func (d *dummyPrefixSource) Start(notifyChan chan<- struct{}) {
-	go func() { utils.Notify(notifyChan) }()
-}
-
 func (d *dummyPrefixSource) Prefixes() []string {
 	return d.prefixes
 }
@@ -75,13 +71,15 @@ func TestCollectorWithDummySources(t *testing.T) {
 		),
 	}
 
+	notifyChan := make(chan struct{}, 1)
+	utils.Notify(notifyChan)
 	expectedResult := []string{
 		"127.0.0.0/16",
 		"168.92.0.0/16",
 		"134.0.0.0/8",
 	}
 
-	testCollector(t, expectedResult, sources)
+	testCollector(t, notifyChan, expectedResult, sources)
 }
 
 func TestKubeAdmConfigSource(t *testing.T) {
@@ -90,12 +88,13 @@ func TestKubeAdmConfigSource(t *testing.T) {
 		"10.96.0.0/12",
 	}
 
+	notifyChan := make(chan struct{}, 1)
 	ctx := createConfigMap(t, prefixcollector.KubeNamespace, kubeConfigMapPath)
 	sources := []prefixcollector.ExcludePrefixSource{
-		prefixcollector.NewKubeAdmPrefixSource(ctx),
+		prefixcollector.NewKubeAdmPrefixSource(ctx, notifyChan),
 	}
 
-	testCollector(t, expectedResult, sources)
+	testCollector(t, notifyChan, expectedResult, sources)
 }
 
 func TestConfigMapSource(t *testing.T) {
@@ -103,13 +102,17 @@ func TestConfigMapSource(t *testing.T) {
 		"168.0.0.0/10",
 		"1.0.0.0/11",
 	}
-
+	notifyChan := make(chan struct{})
 	ctx := createConfigMap(t, prefixcollector.DefaultConfigMapNamespace, configMapPath)
 	sources := []prefixcollector.ExcludePrefixSource{
-		prefixcollector.NewConfigMapPrefixSource(ctx, configMapName, prefixcollector.DefaultConfigMapNamespace),
+		prefixcollector.NewConfigMapPrefixSource(ctx,
+			notifyChan,
+			configMapName,
+			prefixcollector.DefaultConfigMapNamespace,
+		),
 	}
 
-	testCollector(t, expectedResult, sources)
+	testCollector(t, notifyChan, expectedResult, sources)
 }
 
 func createConfigMap(t *testing.T, namespace, configPath string) context.Context {
@@ -125,7 +128,7 @@ func createConfigMap(t *testing.T, namespace, configPath string) context.Context
 	return ctx
 }
 
-func testCollector(t *testing.T, expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
+func testCollector(t *testing.T, notifyChan chan struct{}, expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
 	options := []prefixcollector.ExcludePrefixCollectorOption{
 		prefixcollector.WithSources(sources...),
 		prefixcollector.WithFilePath(testExcludedPrefixesPath),
@@ -135,6 +138,7 @@ func testCollector(t *testing.T, expectedResult []string, sources []prefixcollec
 		context.Background(),
 		[]string{},
 		"",
+		notifyChan,
 		options...,
 	)
 

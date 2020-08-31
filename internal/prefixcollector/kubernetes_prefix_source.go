@@ -31,22 +31,18 @@ type KubernetesPrefixSource struct {
 	ctx      context.Context
 }
 
-// Start - starts monitoring Kubernetes pods and services. Notifies notifyChan after reading prefixes.
-func (kps *KubernetesPrefixSource) Start(notifyChan chan<- struct{}) {
-	go kps.start(notifyChan)
-}
-
 // Prefixes returns prefixes from source
 func (kps *KubernetesPrefixSource) Prefixes() []string {
 	return kps.prefixes.GetList()
 }
 
 // NewKubernetesPrefixSource creates KubernetesPrefixSource
-func NewKubernetesPrefixSource(ctx context.Context) *KubernetesPrefixSource {
+func NewKubernetesPrefixSource(ctx context.Context, notifyChan chan<- struct{}) *KubernetesPrefixSource {
 	kps := &KubernetesPrefixSource{
 		ctx: ctx,
 	}
 
+	go kps.start(notifyChan)
 	return kps
 }
 

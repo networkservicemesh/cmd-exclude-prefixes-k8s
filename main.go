@@ -71,11 +71,12 @@ func main() {
 	}
 
 	ctx = context.WithValue(ctx, utils.ClientSetKey, kubernetes.Interface(clientset))
-
+	notifyChan := make(chan struct{})
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
 		ctx,
 		config.ExcludedPrefixes,
 		config.ConfigMapNamespace,
+		notifyChan,
 	)
 	excludePrefixService.Start()
 
