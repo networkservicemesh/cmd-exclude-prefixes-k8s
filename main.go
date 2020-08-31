@@ -20,6 +20,7 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"

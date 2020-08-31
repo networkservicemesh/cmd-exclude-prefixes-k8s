@@ -20,8 +20,9 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"github.com/networkservicemesh/sdk/pkg/networkservice/common/excludedprefixes"
 	"io/ioutil"
+
+	"github.com/networkservicemesh/sdk/pkg/networkservice/common/excludedprefixes"
 
 	"github.com/sirupsen/logrus"
 
