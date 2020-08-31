@@ -62,13 +62,6 @@ func WithFilePath(filePath string) ExcludePrefixCollectorOption {
 	}
 }
 
-// WithNotifyChan returns ExcludePrefixCollectorOption, that set notifyChan as collector's notifyChan
-func WithNotifyChan(notifyChan chan struct{}) ExcludePrefixCollectorOption {
-	return func(collector *ExcludePrefixCollector) {
-		collector.notifyChan = notifyChan
-	}
-}
-
 // WithSources returns ExcludePrefixCollectorOption, that set sources as collector's prefix sources
 func WithSources(sources ...ExcludePrefixSource) ExcludePrefixCollectorOption {
 	return func(collector *ExcludePrefixCollector) {
