@@ -19,12 +19,11 @@ package prefixcollector_test
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"context"
-	"os"
 	"path/filepath"
-	"time"
+	"sync"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/ghodss/yaml"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,10 +45,6 @@ type dummyPrefixSource struct {
 	prefixes []string
 }
 
-type dummyListener struct {
-	notifyChan chan struct{}
-}
-
 func (d *dummyPrefixSource) Start(notifyChan chan<- struct{}) {
 	go func() { utils.Notify(notifyChan) }()
 }
@@ -58,18 +53,8 @@ func (d *dummyPrefixSource) Prefixes() []string {
 	return d.prefixes
 }
 
-func (dl *dummyListener) Notify() {
-	utils.Notify(dl.notifyChan)
-}
-
 func newDummyPrefixSource(prefixes []string) *dummyPrefixSource {
 	return &dummyPrefixSource{prefixes}
-}
-
-func newDummyListener() *dummyListener {
-	return &dummyListener{
-		notifyChan: make(chan struct{}, 1),
-	}
 }
 
 func TestCollectorWithDummySources(t *testing.T) {
@@ -153,14 +138,10 @@ func testCollector(t *testing.T, expectedResult []string, sources []prefixcollec
 		options...,
 	)
 
-	listener := newDummyListener()
-	collector.AddListener(listener)
 	collector.Start()
 
-	defer func() { _ = os.Remove(testExcludedPrefixesPath) }()
-
-	if err := waitForSources(listener.notifyChan, len(sources)); err != nil {
-		t.Fatal(err)
+	if err := watchFile(t, len(sources)); err != nil {
+		t.Fatal("Error watching file: ", err)
 	}
 
 	bytes, err := ioutil.ReadFile(testExcludedPrefixesPath)
@@ -176,15 +157,42 @@ func testCollector(t *testing.T, expectedResult []string, sources []prefixcollec
 	require.ElementsMatch(t, expectedResult, prefixes.PrefixesList)
 }
 
-func waitForSources(notifyChan <-chan struct{}, sourcesCount int) error {
-	for i := 0; i < sourcesCount; i++ {
-		select {
-		case <-notifyChan:
-		case <-time.After(time.Second * 5):
-			return errors.Errorf("Timeout waiting sources")
+func watchFile(t *testing.T, fileUpdatesRequired int) error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return err
+	}
+	defer watcher.Close()
+
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(1)
+
+	go func() {
+		for i := 0; i < fileUpdatesRequired; {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				if event.Op&fsnotify.Write == fsnotify.Write {
+					i++
+				}
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				t.Error("error watching file:", err)
+			}
 		}
+		waitGroup.Done()
+	}()
+
+	err = watcher.Add(testExcludedPrefixesPath)
+	if err != nil {
+		return err
 	}
 
+	waitGroup.Wait()
 	return nil
 }
 

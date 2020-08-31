@@ -29,12 +29,6 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 )
 
-// ExcludePrefixCollectorListener is listener, the Notify method of which
-// was called after excluded prefixes file was updated
-type ExcludePrefixCollectorListener interface {
-	Notify()
-}
-
 // ExcludePrefixSource is source of excluded prefixes
 type ExcludePrefixSource interface {
 	Start(chan<- struct{})
@@ -49,7 +43,6 @@ type ExcludePrefixCollector struct {
 	baseExcludePrefixes []string
 	outputFilePath      string
 	sources             []ExcludePrefixSource
-	listeners           []ExcludePrefixCollectorListener
 }
 
 // ExcludePrefixCollectorOption is functional option for ExcludePrefixCollector
@@ -108,11 +101,6 @@ func NewExcludePrefixCollector(ctx context.Context, prefixesFromEnv []string,
 	return collector
 }
 
-// AddListener adds ExcludePrefixCollectorListener to collector's listeners list
-func (epc *ExcludePrefixCollector) AddListener(listener ExcludePrefixCollectorListener) {
-	epc.listeners = append(epc.listeners, listener)
-}
-
 // Start - starts every source, then begin monitoring notifyChan.
 // Updates exclude prefix file after every notification.
 func (epc *ExcludePrefixCollector) Start() {
@@ -152,12 +140,5 @@ func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 	err = ioutil.WriteFile(epc.outputFilePath, data, outputFilePermissions)
 	if err != nil {
 		logrus.Fatalf("Unable to write into file: %v", err.Error())
-	}
-	epc.notifyAll()
-}
-
-func (epc *ExcludePrefixCollector) notifyAll() {
-	for _, listener := range epc.listeners {
-		listener.Notify()
 	}
 }
