@@ -20,22 +20,21 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+	"github.com/networkservicemesh/sdk/pkg/networkservice/common/excludedprefixes"
+	"sync"
 
 	"github.com/kelseyhightower/envconfig"
-	"github.com/sirupsen/logrus"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-
 	"github.com/networkservicemesh/sdk/pkg/tools/jaeger"
 	"github.com/networkservicemesh/sdk/pkg/tools/signalctx"
 	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
+	"github.com/sirupsen/logrus"
+	"k8s.io/client-go/kubernetes"
 )
 
 // Config - configuration for cmd-exclude-prefixes-k8s
 type Config struct {
-	ExcludedPrefixes   []string             `desc:"List of excluded prefixes" split_words:"true"`
-	ConfigMapNamespace string               `default:"default" desc:"Namespace of kubernetes config map" split_words:"true"`
-	KubeConfig         utils.KubeConfigPath `desc:"Path to kubeconfig file"`
+	ExcludedPrefixes   []string `desc:"List of excluded prefixes" split_words:"true"`
+	ConfigMapNamespace string   `default:"default" desc:"Namespace of kubernetes config map" split_words:"true"`
 }
 
 func main() {
@@ -50,35 +49,44 @@ func main() {
 
 	// Get clientSetConfig from environment
 	config := &Config{}
-	if err := envconfig.Usage("", config); err != nil {
+	if err := envconfig.Usage("nsm", config); err != nil {
 		logrus.Fatal(err)
 	}
-	if err := envconfig.Process("", config); err != nil {
-		logrus.Fatalf("error processing clientSetConfig from env: %+v", err)
+	if err := envconfig.Process("nsm", config); err != nil {
+		logrus.Fatalf("error processing clientSetConfig from env: %v", err)
 	}
 
 	span.Logger().Printf("Building Kubernetes clientset...")
-	clientSetConfig, err := clientcmd.BuildConfigFromFlags("", string(config.KubeConfig))
+	clientSetConfig, err := utils.NewClientSetConfig()
 	if err != nil {
-		span.Logger().Fatalln("Failed to build Kubernetes clientset: ", err)
+		span.Logger().Fatalf("Failed to build Kubernetes clientset: %v", err)
 	}
 
 	span.Logger().Infof("Starting prefix service...")
 
 	clientset, err := kubernetes.NewForConfig(clientSetConfig)
 	if err != nil {
-		span.Logger().Fatalln("Failed to build Kubernetes clientset: ", err)
+		span.Logger().Fatalf("Failed to build Kubernetes clientset: %v", err)
 	}
 
-	ctx = context.WithValue(ctx, utils.ClientSetKey, kubernetes.Interface(clientset))
-	notifyChan := make(chan struct{})
+	ctx = context.WithValue(ctx, prefixcollector.ClientSetKey, kubernetes.Interface(clientset))
+
+	cond := sync.NewCond(&sync.Mutex{})
+	sources := []prefixcollector.ExcludePrefixSource{
+		prefixcollector.NewEnvPrefixSource(config.ExcludedPrefixes, cond),
+		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
+		prefixcollector.NewKubernetesPrefixSource(ctx, cond),
+		prefixcollector.NewConfigMapPrefixSource(ctx, cond,
+			prefixcollector.DefaultConfigMapName, config.ConfigMapNamespace),
+	}
+
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
-		ctx,
-		config.ExcludedPrefixes,
-		config.ConfigMapNamespace,
-		notifyChan,
+		sources,
+		excludedprefixes.PrefixesFilePathDefault,
+		cond,
 	)
-	excludePrefixService.Start()
+
+	go excludePrefixService.Start()
 
 	span.Finish() // exclude main cycle run time from span timing
 	<-ctx.Done()

@@ -39,6 +39,7 @@ const (
 	kubeConfigMapPath        = "./testfiles/kubeAdmConfigMap.yaml"
 	testExcludedPrefixesPath = "./testfiles/excludedPrefixes.yaml"
 	configMapName            = "test"
+	configMapNamespace       = "default"
 )
 
 type dummyPrefixSource struct {
@@ -71,15 +72,14 @@ func TestCollectorWithDummySources(t *testing.T) {
 		),
 	}
 
-	notifyChan := make(chan struct{}, 1)
-	utils.Notify(notifyChan)
+	cond := sync.NewCond(&sync.Mutex{})
 	expectedResult := []string{
 		"127.0.0.0/16",
 		"168.92.0.0/16",
 		"134.0.0.0/8",
 	}
 
-	testCollector(t, notifyChan, expectedResult, sources)
+	testCollector(t, cond, expectedResult, sources)
 }
 
 func TestKubeAdmConfigSource(t *testing.T) {
@@ -88,13 +88,13 @@ func TestKubeAdmConfigSource(t *testing.T) {
 		"10.96.0.0/12",
 	}
 
-	notifyChan := make(chan struct{}, 1)
+	cond := sync.NewCond(&sync.Mutex{})
 	ctx := createConfigMap(t, prefixcollector.KubeNamespace, kubeConfigMapPath)
 	sources := []prefixcollector.ExcludePrefixSource{
-		prefixcollector.NewKubeAdmPrefixSource(ctx, notifyChan),
+		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
 	}
 
-	testCollector(t, notifyChan, expectedResult, sources)
+	testCollector(t, cond, expectedResult, sources)
 }
 
 func TestConfigMapSource(t *testing.T) {
@@ -102,17 +102,18 @@ func TestConfigMapSource(t *testing.T) {
 		"168.0.0.0/10",
 		"1.0.0.0/11",
 	}
-	notifyChan := make(chan struct{})
-	ctx := createConfigMap(t, prefixcollector.DefaultConfigMapNamespace, configMapPath)
+	cond := sync.NewCond(&sync.Mutex{})
+
+	ctx := createConfigMap(t, configMapNamespace, configMapPath)
 	sources := []prefixcollector.ExcludePrefixSource{
 		prefixcollector.NewConfigMapPrefixSource(ctx,
-			notifyChan,
+			cond,
 			configMapName,
-			prefixcollector.DefaultConfigMapNamespace,
+			configMapNamespace,
 		),
 	}
 
-	testCollector(t, notifyChan, expectedResult, sources)
+	testCollector(t, cond, expectedResult, sources)
 }
 
 func createConfigMap(t *testing.T, namespace, configPath string) context.Context {
@@ -120,7 +121,7 @@ func createConfigMap(t *testing.T, namespace, configPath string) context.Context
 	clientSet := fake.NewSimpleClientset()
 	configMap := getConfigMap(t, configPath)
 
-	ctx = context.WithValue(ctx, utils.ClientSetKey, clientSet)
+	ctx = context.WithValue(ctx, prefixcollector.ClientSetKey, clientSet)
 	_, _ = clientSet.CoreV1().
 		ConfigMaps(namespace).
 		Create(ctx, configMap, metav1.CreateOptions{})
@@ -128,21 +129,14 @@ func createConfigMap(t *testing.T, namespace, configPath string) context.Context
 	return ctx
 }
 
-func testCollector(t *testing.T, notifyChan chan struct{}, expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
-	options := []prefixcollector.ExcludePrefixCollectorOption{
-		prefixcollector.WithSources(sources...),
-		prefixcollector.WithFilePath(testExcludedPrefixesPath),
-	}
-
+func testCollector(t *testing.T, cond *sync.Cond, expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
 	collector := prefixcollector.NewExcludePrefixCollector(
-		context.Background(),
-		[]string{},
-		"",
-		notifyChan,
-		options...,
+		sources,
+		testExcludedPrefixesPath,
+		cond,
 	)
 
-	collector.Start()
+	go collector.Start()
 
 	if err := watchFile(t, len(sources)); err != nil {
 		t.Fatal("Error watching file: ", err)

@@ -19,6 +19,7 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -38,8 +39,8 @@ type ConfigMapPrefixSource struct {
 }
 
 // NewConfigMapPrefixSource creates ConfigMapPrefixSource
-func NewConfigMapPrefixSource(ctx context.Context, notifyChan chan<- struct{}, name, namespace string) *ConfigMapPrefixSource {
-	clientSet := utils.FromContext(ctx)
+func NewConfigMapPrefixSource(ctx context.Context, notify *sync.Cond, name, namespace string) *ConfigMapPrefixSource {
+	clientSet := FromContext(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(namespace)
 	cmps := ConfigMapPrefixSource{
 		configMapName:      name,
@@ -48,7 +49,7 @@ func NewConfigMapPrefixSource(ctx context.Context, notifyChan chan<- struct{}, n
 		ctx:                ctx,
 	}
 
-	go cmps.watchConfigMap(notifyChan)
+	go cmps.watchConfigMap(notify)
 	return &cmps
 }
 
@@ -57,7 +58,7 @@ func (cmps *ConfigMapPrefixSource) Prefixes() []string {
 	return cmps.prefixes.GetList()
 }
 
-func (cmps *ConfigMapPrefixSource) watchConfigMap(notifyChan chan<- struct{}) {
+func (cmps *ConfigMapPrefixSource) watchConfigMap(notify *sync.Cond) {
 	for {
 		cm, err := cmps.configMapInterface.Get(cmps.ctx, cmps.configMapName, metav1.GetOptions{})
 		if err != nil {
@@ -72,7 +73,7 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap(notifyChan chan<- struct{}) {
 			return
 		}
 		cmps.prefixes.SetList(prefixes.PrefixesList)
-		utils.Notify(notifyChan)
+		notify.Broadcast()
 		<-time.After(time.Second * 10)
 	}
 }

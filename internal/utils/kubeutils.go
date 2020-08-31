@@ -19,16 +19,18 @@ package utils
 import (
 	"os"
 	"path/filepath"
+
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
-// KubeConfigPath is path to kubeconfig path
-type KubeConfigPath string
-
-// Decode used to decode KubeConfigPath from ENV variable
-func (kcp *KubeConfigPath) Decode(value string) error {
-	if value == "" {
-		value = filepath.Join(os.Getenv("HOME"), ".kube", "config")
+// NewClientSetConfig creates ClientSetConfig from config file.
+// If config file path not provided via env variable KUBECONFIG, default path "HOME/.kube/config" will be used
+func NewClientSetConfig() (*rest.Config, error) {
+	configPath := os.Getenv("KUBECONFIG")
+	if configPath == "" {
+		configPath = filepath.Join(os.Getenv("HOME"), ".kube", "config")
 	}
-	*kcp = KubeConfigPath(value)
-	return nil
+	config, err := clientcmd.BuildConfigFromFlags("", configPath)
+	return config, err
 }

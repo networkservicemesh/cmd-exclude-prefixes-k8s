@@ -19,10 +19,8 @@ package prefixcollector
 
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
-	"context"
 	"io/ioutil"
-
-	"github.com/networkservicemesh/sdk/pkg/networkservice/common/excludedprefixes"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 
@@ -38,57 +36,24 @@ type ExcludePrefixSource interface {
 // and environment variable "EXCLUDED_PREFIXES"
 // and writing result to outputFilePath in yaml format
 type ExcludePrefixCollector struct {
-	notifyChan          chan struct{}
+	notify              *sync.Cond
 	baseExcludePrefixes []string
 	outputFilePath      string
 	sources             []ExcludePrefixSource
 }
 
-// ExcludePrefixCollectorOption is functional option for ExcludePrefixCollector
-type ExcludePrefixCollectorOption func(*ExcludePrefixCollector)
-
 const (
-	// DefaultConfigMapNamespace is default namespace of kubernetes ConfigMap
-	DefaultConfigMapNamespace = "default"
-	defaultConfigMapName      = "nsm-config-volume"
-	outputFilePermissions     = 0600
+	// DefaultConfigMapName is default name of nsm kubernetes ConfigMap
+	DefaultConfigMapName  = "nsm-config-volume"
+	outputFilePermissions = 0600
 )
 
-// WithFilePath returns ExcludePrefixCollectorOption, that set filePath as collector's outputFilePath
-func WithFilePath(filePath string) ExcludePrefixCollectorOption {
-	return func(collector *ExcludePrefixCollector) {
-		collector.outputFilePath = filePath
-	}
-}
-
-// WithSources returns ExcludePrefixCollectorOption, that set sources as collector's prefix sources
-func WithSources(sources ...ExcludePrefixSource) ExcludePrefixCollectorOption {
-	return func(collector *ExcludePrefixCollector) {
-		collector.sources = sources
-	}
-}
-
 // NewExcludePrefixCollector creates ExcludePrefixCollector
-// and applies every ExcludePrefixCollectorOption to it
-func NewExcludePrefixCollector(ctx context.Context, prefixesFromEnv []string,
-	configMapNamespace string, notifyChan chan struct{},
-	options ...ExcludePrefixCollectorOption) *ExcludePrefixCollector {
+func NewExcludePrefixCollector(sources []ExcludePrefixSource, outputFilePath string, notify *sync.Cond) *ExcludePrefixCollector {
 	collector := &ExcludePrefixCollector{
-		outputFilePath:      excludedprefixes.PrefixesFilePathDefault,
-		baseExcludePrefixes: utils.GetValidatedPrefixes(prefixesFromEnv),
-		notifyChan:          notifyChan,
-	}
-
-	for _, option := range options {
-		option(collector)
-	}
-
-	if collector.sources == nil {
-		collector.sources = []ExcludePrefixSource{
-			NewKubeAdmPrefixSource(ctx, notifyChan),
-			NewKubernetesPrefixSource(ctx, notifyChan),
-			NewConfigMapPrefixSource(ctx, notifyChan, defaultConfigMapName, configMapNamespace),
-		}
+		outputFilePath: outputFilePath,
+		notify:         notify,
+		sources:        sources,
 	}
 
 	return collector
@@ -97,11 +62,12 @@ func NewExcludePrefixCollector(ctx context.Context, prefixesFromEnv []string,
 // Start - starts every source, then begin monitoring notifyChan.
 // Updates exclude prefix file after every notification.
 func (epc *ExcludePrefixCollector) Start() {
-	go func() {
-		for range epc.notifyChan {
-			epc.updateExcludedPrefixesConfigmap()
-		}
-	}()
+	for {
+		epc.notify.L.Lock()
+		epc.notify.Wait()
+		epc.notify.L.Unlock()
+		epc.updateExcludedPrefixesConfigmap()
+	}
 }
 
 func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {

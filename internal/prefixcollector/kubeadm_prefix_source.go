@@ -19,14 +19,13 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"strings"
-	"time"
-
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta2"
+	"strings"
+	"sync"
 )
 
 const (
@@ -50,21 +49,21 @@ func (kaps *KubeAdmPrefixSource) Prefixes() []string {
 }
 
 // NewKubeAdmPrefixSource creates KubeAdmPrefixSource
-func NewKubeAdmPrefixSource(ctx context.Context, notifyChan chan<- struct{}) *KubeAdmPrefixSource {
-	clientSet := utils.FromContext(ctx)
+func NewKubeAdmPrefixSource(ctx context.Context, notify *sync.Cond) *KubeAdmPrefixSource {
+	clientSet := FromContext(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(KubeNamespace)
 	kaps := KubeAdmPrefixSource{
 		configMapInterface: configMapInterface,
 		ctx:                ctx,
 	}
 
-	go kaps.watchKubeAdmConfigMap(notifyChan)
+	go kaps.watchKubeAdmConfigMap(notify)
 	return &kaps
 }
 
-func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap(notifyChan chan<- struct{}) {
+func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap(notify *sync.Cond) {
 	for {
-		clientSet := utils.FromContext(kaps.ctx)
+		clientSet := FromContext(kaps.ctx)
 		kubeadmConfig, err := clientSet.CoreV1().ConfigMaps(KubeNamespace).
 			Get(kaps.ctx, KubeName, metav1.GetOptions{})
 		if err != nil {
@@ -94,7 +93,7 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap(notifyChan chan<- struct{
 			podSubnet,
 			serviceSubnet,
 		})
-		utils.Notify(notifyChan)
-		<-time.After(time.Second * 10)
+		notify.Broadcast()
+		//<-time.After(time.Second * 10)
 	}
 }
