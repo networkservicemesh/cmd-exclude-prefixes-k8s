@@ -73,7 +73,6 @@ func WithSources(sources ...ExcludePrefixSource) ExcludePrefixCollectorOption {
 func NewExcludePrefixCollector(ctx context.Context, prefixesFromEnv []string,
 	configMapNamespace string, notifyChan chan struct{},
 	options ...ExcludePrefixCollectorOption) *ExcludePrefixCollector {
-
 	collector := &ExcludePrefixCollector{
 		outputFilePath:      excludedprefixes.PrefixesFilePathDefault,
 		baseExcludePrefixes: utils.GetValidatedPrefixes(prefixesFromEnv),
