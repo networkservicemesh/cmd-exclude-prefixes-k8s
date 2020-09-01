@@ -19,17 +19,15 @@ package prefixcollector_test
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"context"
-	"go.uber.org/goleak"
-	"path/filepath"
-	"sync"
-	"time"
-
 	"github.com/fsnotify/fsnotify"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
+	"path/filepath"
+	"sync"
 
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"io/ioutil"
@@ -52,17 +50,12 @@ func (d *dummyPrefixSource) Prefixes() []string {
 	return d.prefixes
 }
 
-func newDummyPrefixSource(prefixes []string, cond *sync.Cond) *dummyPrefixSource {
-	go func() {
-		for {
-			cond.Broadcast()
-			<-time.After(time.Second)
-		}
-	}()
+func newDummyPrefixSource(prefixes []string) *dummyPrefixSource {
 	return &dummyPrefixSource{prefixes}
 }
 
 func TestCollectorWithDummySources(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 	cond := sync.NewCond(&sync.Mutex{})
 	sources := []prefixcollector.ExcludePrefixSource{
 		newDummyPrefixSource(
@@ -71,7 +64,6 @@ func TestCollectorWithDummySources(t *testing.T) {
 				"127.0.2.1/16",
 				"168.92.0.1/24",
 			},
-			cond,
 		),
 		newDummyPrefixSource(
 			[]string{
@@ -79,7 +71,6 @@ func TestCollectorWithDummySources(t *testing.T) {
 				"134.56.0.1/8",
 				"168.92.0.1/16",
 			},
-			cond,
 		),
 	}
 
@@ -90,7 +81,31 @@ func TestCollectorWithDummySources(t *testing.T) {
 	}
 
 	testCollector(t, cond, expectedResult, sources)
+}
+
+func TestConfigMapSource(t *testing.T) {
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+	expectedResult := []string{
+		"168.0.0.0/10",
+		"1.0.0.0/11",
+	}
+	cond := sync.NewCond(&sync.Mutex{})
+
+	configMap, ctx := createConfigMap(t, configMapNamespace, configMapPath)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	sources := []prefixcollector.ExcludePrefixSource{
+		prefixcollector.NewConfigMapPrefixSource(
+			ctx,
+			cond,
+			configMapName,
+			configMapNamespace,
+		),
+	}
+	updateConfigMap(t, ctx, configMap)
+
+	testCollector(t, cond, expectedResult, sources)
 }
 
 func TestKubeAdmConfigSource(t *testing.T) {
@@ -102,40 +117,23 @@ func TestKubeAdmConfigSource(t *testing.T) {
 
 	cond := sync.NewCond(&sync.Mutex{})
 	configMap, ctx := createConfigMap(t, prefixcollector.KubeNamespace, kubeConfigMapPath)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	sources := []prefixcollector.ExcludePrefixSource{
 		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
 	}
-	updateConfigMap(t, ctx, configMap, prefixcollector.KubeNamespace)
+	updateConfigMap(t, ctx, configMap)
 
 	testCollector(t, cond, expectedResult, sources)
 }
 
-func updateConfigMap(t *testing.T, ctx context.Context, configMap *v1.ConfigMap, namespace string) {
+func updateConfigMap(t *testing.T, ctx context.Context, configMap *v1.ConfigMap) {
 	clientSet := prefixcollector.FromContext(ctx)
-	_, err := clientSet.CoreV1().ConfigMaps(namespace).Update(ctx, configMap, metav1.UpdateOptions{})
+	_, err := clientSet.CoreV1().ConfigMaps(configMap.Namespace).Update(ctx, configMap, metav1.UpdateOptions{})
 	if err != nil {
-		t.Fatalf("Error updating config map %v/%v: %v", namespace, configMap.Name, err)
+		t.Fatalf("Error updating config map %v/%v: %v", configMap.Namespace, configMap.Name, err)
 	}
-}
-
-func TestConfigMapSource(t *testing.T) {
-	expectedResult := []string{
-		"168.0.0.0/10",
-		"1.0.0.0/11",
-	}
-	cond := sync.NewCond(&sync.Mutex{})
-
-	_, ctx := createConfigMap(t, configMapNamespace, configMapPath)
-	sources := []prefixcollector.ExcludePrefixSource{
-		prefixcollector.NewConfigMapPrefixSource(ctx,
-			cond,
-			configMapName,
-			configMapNamespace,
-		),
-	}
-
-	testCollector(t, cond, expectedResult, sources)
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 }
 
 func createConfigMap(t *testing.T, namespace, configPath string) (*v1.ConfigMap, context.Context) {
@@ -159,6 +157,7 @@ func testCollector(t *testing.T, cond *sync.Cond, expectedResult []string, sourc
 	)
 
 	go collector.Start()
+	defer collector.Stop()
 
 	if err := watchFile(t, len(sources)); err != nil {
 		t.Fatal("Error watching file: ", err)

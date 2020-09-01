@@ -27,6 +27,7 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta2"
 	"strings"
+	"time"
 )
 
 const (
@@ -72,24 +73,33 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 		return
 	}
 
-	for event := range configMapWatch.ResultChan() {
-		if event.Type == watch.Error {
-			continue
-		}
+	for kaps.ctx.Err() == nil {
+		select {
+		case event, ok := <-configMapWatch.ResultChan():
+			if !ok {
+				return
+			}
 
-		configMap, ok := event.Object.(*apiV1.ConfigMap)
-		if !ok || configMap.Name != KubeName {
-			continue
-		}
+			if event.Type == watch.Error {
+				continue
+			}
 
-		if event.Type == watch.Deleted {
-			kaps.prefixes.SetList([]string{})
-			kaps.notify.Broadcast()
-			continue
-		}
+			configMap, ok := event.Object.(*apiV1.ConfigMap)
+			if !ok || configMap.Name != KubeName {
+				continue
+			}
 
-		if err = kaps.setPrefixesFromConfigMap(configMap); err != nil {
-			logrus.Error(err)
+			if event.Type == watch.Deleted {
+				kaps.prefixes.SetList([]string{})
+				kaps.notify.Broadcast()
+				continue
+			}
+
+			if err = kaps.setPrefixesFromConfigMap(configMap); err != nil {
+				logrus.Error(err)
+			}
+		case <-time.After(time.Second * 10):
+
 		}
 	}
 }

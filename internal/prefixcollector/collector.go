@@ -19,6 +19,7 @@ package prefixcollector
 
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
+	"go.uber.org/atomic"
 	"io/ioutil"
 	"sync"
 
@@ -45,6 +46,7 @@ type ExcludePrefixCollector struct {
 	outputFilePath   string
 	sources          []ExcludePrefixSource
 	previousPrefixes []string
+	interrupted      atomic.Bool
 }
 
 const (
@@ -64,18 +66,24 @@ func NewExcludePrefixCollector(sources []ExcludePrefixSource, outputFilePath str
 	return collector
 }
 
-// Start - starts every source, then begin monitoring notifyChan.
+// Start - begin monitoring sources.
 // Updates exclude prefix file after every notification.
 func (epc *ExcludePrefixCollector) Start() {
 	// check current state of sources
 	epc.updateExcludedPrefixesConfigmap()
 
-	for {
+	for !epc.interrupted.Load() {
 		epc.notify.L.Lock()
 		epc.notify.Wait()
 		epc.notify.L.Unlock()
 		epc.updateExcludedPrefixesConfigmap()
 	}
+}
+
+// Stop - stops collector
+func (epc *ExcludePrefixCollector) Stop() {
+	epc.interrupted.Store(true)
+	epc.notify.Broadcast()
 }
 
 func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {

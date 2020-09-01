@@ -25,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"time"
 )
 
 const configMapPrefixesKey = "excluded_prefixes.yaml"
@@ -70,7 +71,12 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 	}
 
 	for cmps.ctx.Err() == nil {
-		for event := range configMapWatch.ResultChan() {
+		select {
+		case event, ok := <-configMapWatch.ResultChan():
+			if !ok {
+				return
+			}
+
 			if event.Type == watch.Error {
 				continue
 			}
@@ -89,7 +95,7 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 			if err = cmps.setPrefixesFromConfigMap(configMap); err != nil {
 				logrus.Error(err)
 			}
-
+		case <-time.After(time.Second * 10):
 		}
 	}
 }
