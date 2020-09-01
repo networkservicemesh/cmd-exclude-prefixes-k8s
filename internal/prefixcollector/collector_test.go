@@ -19,6 +19,7 @@ package prefixcollector_test
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"context"
+	"go.uber.org/goleak"
 	"path/filepath"
 	"sync"
 	"time"
@@ -89,6 +90,7 @@ func TestCollectorWithDummySources(t *testing.T) {
 	}
 
 	testCollector(t, cond, expectedResult, sources)
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 }
 
 func TestKubeAdmConfigSource(t *testing.T) {
@@ -104,6 +106,7 @@ func TestKubeAdmConfigSource(t *testing.T) {
 	}
 
 	testCollector(t, cond, expectedResult, sources)
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 }
 
 func TestConfigMapSource(t *testing.T) {
@@ -123,6 +126,7 @@ func TestConfigMapSource(t *testing.T) {
 	}
 
 	testCollector(t, cond, expectedResult, sources)
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 }
 
 func createConfigMap(t *testing.T, namespace, configPath string) context.Context {

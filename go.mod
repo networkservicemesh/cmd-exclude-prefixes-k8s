@@ -11,6 +11,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.4.2
 	github.com/stretchr/testify v1.6.1
+	go.uber.org/goleak v1.0.1-0.20200717213025-100c34bdc9d6
 	k8s.io/api v0.18.1
 	k8s.io/apimachinery v0.18.2
 	k8s.io/client-go v0.18.1

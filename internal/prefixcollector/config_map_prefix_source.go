@@ -19,12 +19,12 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"sync"
-	"time"
-
 	"github.com/sirupsen/logrus"
+	apiV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"sync"
 )
 
 const configMapPrefixesKey = "excluded_prefixes.yaml"
@@ -59,21 +59,36 @@ func (cmps *ConfigMapPrefixSource) Prefixes() []string {
 }
 
 func (cmps *ConfigMapPrefixSource) watchConfigMap(notify *sync.Cond) {
-	for {
-		cm, err := cmps.configMapInterface.Get(cmps.ctx, cmps.configMapName, metav1.GetOptions{})
-		if err != nil {
-			logrus.Errorf("Failed to get ConfigMap '%sources/%sources': %v", cmps.configMapNameSpace, cmps.configMapName, err)
-			return
-		}
+	configMapWatch, err := cmps.configMapInterface.Watch(cmps.ctx, metav1.ListOptions{})
+	if err != nil {
+		logrus.Errorf("Error creating config map watch: %v", err)
+		return
+	}
 
-		bytes := []byte(cm.Data[configMapPrefixesKey])
-		prefixes, err := utils.YamlToPrefixes(bytes)
-		if err != nil {
-			logrus.Errorf("Can not unmarshal prefixes, err: %v", err.Error())
-			return
+	for cmps.ctx.Err() == nil {
+		for event := range configMapWatch.ResultChan() {
+			if event.Type == watch.Error {
+				continue
+			}
+
+			configMap, ok := event.Object.(*apiV1.ConfigMap)
+			if !ok || configMap.Name != cmps.configMapName {
+				continue
+			}
+
+			prefixesField, ok := configMap.Data[configMapPrefixesKey]
+			if !ok {
+				continue
+			}
+
+			prefixes, err := utils.YamlToPrefixes([]byte(prefixesField))
+			if err != nil {
+				logrus.Errorf("Can not unmarshal prefixes, err: %v", err.Error())
+				return
+			}
+			cmps.prefixes.SetList(prefixes.PrefixesList)
+			notify.Broadcast()
+			logrus.Infof("Prefixes sent from config map source: %v", prefixes.PrefixesList)
 		}
-		cmps.prefixes.SetList(prefixes.PrefixesList)
-		notify.Broadcast()
-		<-time.After(time.Second * 10)
 	}
 }

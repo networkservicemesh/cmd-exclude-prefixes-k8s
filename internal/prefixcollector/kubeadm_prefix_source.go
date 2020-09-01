@@ -19,15 +19,15 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"strings"
-	"sync"
-	"time"
-
 	"github.com/sirupsen/logrus"
+	apiV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/apimachinery/pkg/watch"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta2"
+	"strings"
+	"sync"
 )
 
 const (
@@ -64,18 +64,27 @@ func NewKubeAdmPrefixSource(ctx context.Context, notify *sync.Cond) *KubeAdmPref
 }
 
 func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap(notify *sync.Cond) {
-	for {
-		clientSet := FromContext(kaps.ctx)
-		kubeadmConfig, err := clientSet.CoreV1().ConfigMaps(KubeNamespace).
-			Get(kaps.ctx, KubeName, metav1.GetOptions{})
-		if err != nil {
-			logrus.Error(err)
+	configMapWatch, err := kaps.configMapInterface.Watch(kaps.ctx, metav1.ListOptions{})
+	if err != nil {
+		logrus.Errorf("Error creating config map watch: %v", err)
+		return
+	}
+
+	for event := range configMapWatch.ResultChan() {
+		if event.Type == watch.Error {
+			continue
+		}
+
+		configMap, ok := event.Object.(*apiV1.ConfigMap)
+		if !ok || configMap.Name != KubeName {
 			continue
 		}
 
 		clusterConfiguration := &v1beta2.ClusterConfiguration{}
-		err = yaml.NewYAMLOrJSONDecoder(strings.NewReader(kubeadmConfig.Data["ClusterConfiguration"]), bufferSize).
-			Decode(clusterConfiguration)
+		err := yaml.NewYAMLOrJSONDecoder(
+			strings.NewReader(configMap.Data["ClusterConfiguration"]), bufferSize,
+		).Decode(clusterConfiguration)
+
 		if err != nil {
 			logrus.Error(err)
 			continue
@@ -91,11 +100,9 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap(notify *sync.Cond) {
 			logrus.Error("ClusterConfiguration.Networking.ServiceSubnet is empty")
 		}
 
-		kaps.prefixes.SetList([]string{
-			podSubnet,
-			serviceSubnet,
-		})
+		prefixes := []string{podSubnet, serviceSubnet}
+		kaps.prefixes.SetList(prefixes)
 		notify.Broadcast()
-		<-time.After(time.Second * 10)
+		logrus.Infof("Prefixes sent from kubeadm source: %v", prefixes)
 	}
 }
