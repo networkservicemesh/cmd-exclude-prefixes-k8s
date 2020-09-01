@@ -19,13 +19,15 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta2"
-	"strings"
-	"sync"
 )
 
 const (
@@ -94,6 +96,6 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap(notify *sync.Cond) {
 			serviceSubnet,
 		})
 		notify.Broadcast()
-		//<-time.After(time.Second * 10)
+		<-time.After(time.Second * 10)
 	}
 }

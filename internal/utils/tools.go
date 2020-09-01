@@ -53,7 +53,7 @@ func YamlToPrefixes(bytes []byte) (Prefixes, error) {
 
 // GetValidatedPrefixes returns list of validated via CIDR notation parsing prefixes
 func GetValidatedPrefixes(prefixes []string) []string {
-	validatedPrefixes := make([]string, 0, len(prefixes))
+	var validatedPrefixes []string
 	for _, prefix := range prefixes {
 		_, _, err := net.ParseCIDR(prefix)
 		if err == nil {

@@ -20,15 +20,17 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"github.com/networkservicemesh/sdk/pkg/networkservice/common/excludedprefixes"
 	"sync"
 
+	"github.com/networkservicemesh/sdk/pkg/networkservice/common/excludedprefixes"
+
 	"github.com/kelseyhightower/envconfig"
+	"github.com/sirupsen/logrus"
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/networkservicemesh/sdk/pkg/tools/jaeger"
 	"github.com/networkservicemesh/sdk/pkg/tools/signalctx"
 	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
-	"github.com/sirupsen/logrus"
-	"k8s.io/client-go/kubernetes"
 )
 
 // Config - configuration for cmd-exclude-prefixes-k8s

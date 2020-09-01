@@ -21,6 +21,7 @@ import (
 	"context"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/ghodss/yaml"
@@ -50,11 +51,18 @@ func (d *dummyPrefixSource) Prefixes() []string {
 	return d.prefixes
 }
 
-func newDummyPrefixSource(prefixes []string) *dummyPrefixSource {
+func newDummyPrefixSource(prefixes []string, cond *sync.Cond) *dummyPrefixSource {
+	go func() {
+		for {
+			cond.Broadcast()
+			<-time.After(time.Second)
+		}
+	}()
 	return &dummyPrefixSource{prefixes}
 }
 
 func TestCollectorWithDummySources(t *testing.T) {
+	cond := sync.NewCond(&sync.Mutex{})
 	sources := []prefixcollector.ExcludePrefixSource{
 		newDummyPrefixSource(
 			[]string{
@@ -62,6 +70,7 @@ func TestCollectorWithDummySources(t *testing.T) {
 				"127.0.2.1/16",
 				"168.92.0.1/24",
 			},
+			cond,
 		),
 		newDummyPrefixSource(
 			[]string{
@@ -69,10 +78,10 @@ func TestCollectorWithDummySources(t *testing.T) {
 				"134.56.0.1/8",
 				"168.92.0.1/16",
 			},
+			cond,
 		),
 	}
 
-	cond := sync.NewCond(&sync.Mutex{})
 	expectedResult := []string{
 		"127.0.0.0/16",
 		"168.92.0.0/16",
