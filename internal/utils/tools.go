@@ -63,3 +63,28 @@ func GetValidatedPrefixes(prefixes []string) []string {
 
 	return validatedPrefixes
 }
+
+// UnorderedSlicesEquals returns true if specified slice x is equal to specified slice y
+// ignoring the order of the elements
+func UnorderedSlicesEquals(x, y []string) bool {
+	if len(x) != len(y) {
+		return false
+	}
+	diff := make(map[string]int, len(x))
+	for _, _x := range x {
+		diff[_x]++
+	}
+	for _, _y := range y {
+		if _, ok := diff[_y]; !ok {
+			return false
+		}
+		diff[_y] -= 1
+		if diff[_y] == 0 {
+			delete(diff, _y)
+		}
+	}
+	if len(diff) == 0 {
+		return true
+	}
+	return false
+}

@@ -36,9 +36,10 @@ type ExcludePrefixSource interface {
 // and environment variable "EXCLUDED_PREFIXES"
 // and writing result to outputFilePath in yaml format
 type ExcludePrefixCollector struct {
-	notify         *sync.Cond
-	outputFilePath string
-	sources        []ExcludePrefixSource
+	notify           *sync.Cond
+	outputFilePath   string
+	sources          []ExcludePrefixSource
+	previousPrefixes []string
 }
 
 const (
@@ -84,7 +85,13 @@ func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 		}
 	}
 
-	data, err := utils.PrefixesToYaml(excludePrefixPool.GetPrefixes())
+	newPrefixes := excludePrefixPool.GetPrefixes()
+	if utils.UnorderedSlicesEquals(newPrefixes, epc.previousPrefixes) {
+		return
+	}
+	epc.previousPrefixes = newPrefixes
+
+	data, err := utils.PrefixesToYaml(newPrefixes)
 	if err != nil {
 		logrus.Errorf("Can not create marshal prefixes, err: %v", err.Error())
 		return
