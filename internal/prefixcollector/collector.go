@@ -36,10 +36,9 @@ type ExcludePrefixSource interface {
 // and environment variable "EXCLUDED_PREFIXES"
 // and writing result to outputFilePath in yaml format
 type ExcludePrefixCollector struct {
-	notify              *sync.Cond
-	baseExcludePrefixes []string
-	outputFilePath      string
-	sources             []ExcludePrefixSource
+	notify         *sync.Cond
+	outputFilePath string
+	sources        []ExcludePrefixSource
 }
 
 const (
@@ -71,8 +70,7 @@ func (epc *ExcludePrefixCollector) Start() {
 }
 
 func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
-	// error check skipped, because we've already validated baseExcludePrefixes
-	excludePrefixPool, _ := prefixpool.New(epc.baseExcludePrefixes...)
+	excludePrefixPool, _ := prefixpool.New()
 
 	for _, v := range epc.sources {
 		sourcePrefixes := v.Prefixes()
