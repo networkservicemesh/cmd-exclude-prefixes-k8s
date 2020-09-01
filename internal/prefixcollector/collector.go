@@ -19,9 +19,10 @@ package prefixcollector
 
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
-	"go.uber.org/atomic"
 	"io/ioutil"
 	"sync"
+
+	"go.uber.org/atomic"
 
 	"github.com/sirupsen/logrus"
 

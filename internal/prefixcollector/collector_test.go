@@ -19,6 +19,9 @@ package prefixcollector_test
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"context"
+	"path/filepath"
+	"sync"
+
 	"github.com/fsnotify/fsnotify"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
@@ -26,8 +29,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
-	"path/filepath"
-	"sync"
 
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"io/ioutil"
@@ -103,7 +104,7 @@ func TestConfigMapSource(t *testing.T) {
 			configMapNamespace,
 		),
 	}
-	updateConfigMap(t, ctx, configMap)
+	updateConfigMap(ctx, t, configMap)
 
 	testCollector(t, cond, expectedResult, sources)
 }
@@ -123,12 +124,12 @@ func TestKubeAdmConfigSource(t *testing.T) {
 	sources := []prefixcollector.ExcludePrefixSource{
 		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
 	}
-	updateConfigMap(t, ctx, configMap)
+	updateConfigMap(ctx, t, configMap)
 
 	testCollector(t, cond, expectedResult, sources)
 }
 
-func updateConfigMap(t *testing.T, ctx context.Context, configMap *v1.ConfigMap) {
+func updateConfigMap(ctx context.Context, t *testing.T, configMap *v1.ConfigMap) {
 	clientSet := prefixcollector.FromContext(ctx)
 	_, err := clientSet.CoreV1().ConfigMaps(configMap.Namespace).Update(ctx, configMap, metav1.UpdateOptions{})
 	if err != nil {
