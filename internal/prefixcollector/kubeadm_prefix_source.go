@@ -100,7 +100,6 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 				logrus.Error(err)
 			}
 		case <-time.After(time.Second * 10):
-
 		}
 	}
 }
