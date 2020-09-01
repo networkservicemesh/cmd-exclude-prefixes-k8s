@@ -75,7 +75,7 @@ func main() {
 
 	cond := sync.NewCond(&sync.Mutex{})
 	sources := []prefixcollector.ExcludePrefixSource{
-		prefixcollector.NewEnvPrefixSource(config.ExcludedPrefixes, cond),
+		prefixcollector.NewEnvPrefixSource(config.ExcludedPrefixes),
 		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
 		prefixcollector.NewKubernetesPrefixSource(ctx, cond),
 		prefixcollector.NewConfigMapPrefixSource(ctx, cond,

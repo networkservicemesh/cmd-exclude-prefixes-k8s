@@ -27,7 +27,6 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta2"
 	"strings"
-	"sync"
 )
 
 const (
@@ -43,6 +42,7 @@ type KubeAdmPrefixSource struct {
 	configMapInterface v1.ConfigMapInterface
 	prefixes           utils.SynchronizedPrefixesContainer
 	ctx                context.Context
+	notify             Notifier
 }
 
 // Prefixes returns prefixes from source
@@ -51,19 +51,21 @@ func (kaps *KubeAdmPrefixSource) Prefixes() []string {
 }
 
 // NewKubeAdmPrefixSource creates KubeAdmPrefixSource
-func NewKubeAdmPrefixSource(ctx context.Context, notify *sync.Cond) *KubeAdmPrefixSource {
+func NewKubeAdmPrefixSource(ctx context.Context, notify Notifier) *KubeAdmPrefixSource {
 	clientSet := FromContext(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(KubeNamespace)
 	kaps := KubeAdmPrefixSource{
 		configMapInterface: configMapInterface,
 		ctx:                ctx,
+		notify:             notify,
 	}
 
-	go kaps.watchKubeAdmConfigMap(notify)
+	go kaps.watchKubeAdmConfigMap()
 	return &kaps
 }
 
-func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap(notify *sync.Cond) {
+func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
+	kaps.checkCurrentConfigMap()
 	configMapWatch, err := kaps.configMapInterface.Watch(kaps.ctx, metav1.ListOptions{})
 	if err != nil {
 		logrus.Errorf("Error creating config map watch: %v", err)
@@ -80,29 +82,54 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap(notify *sync.Cond) {
 			continue
 		}
 
-		clusterConfiguration := &v1beta2.ClusterConfiguration{}
-		err := yaml.NewYAMLOrJSONDecoder(
-			strings.NewReader(configMap.Data["ClusterConfiguration"]), bufferSize,
-		).Decode(clusterConfiguration)
-
-		if err != nil {
-			logrus.Error(err)
+		if event.Type == watch.Deleted {
+			kaps.prefixes.SetList([]string{})
+			kaps.notify.Broadcast()
 			continue
 		}
 
-		podSubnet := clusterConfiguration.Networking.PodSubnet
-		serviceSubnet := clusterConfiguration.Networking.ServiceSubnet
-
-		if podSubnet == "" {
-			logrus.Error("ClusterConfiguration.Networking.PodSubnet is empty")
+		if err = kaps.setPrefixesFromConfigMap(configMap); err != nil {
+			logrus.Error(err)
 		}
-		if serviceSubnet == "" {
-			logrus.Error("ClusterConfiguration.Networking.ServiceSubnet is empty")
-		}
-
-		prefixes := []string{podSubnet, serviceSubnet}
-		kaps.prefixes.SetList(prefixes)
-		notify.Broadcast()
-		logrus.Infof("Prefixes sent from kubeadm source: %v", prefixes)
 	}
+}
+
+func (kaps *KubeAdmPrefixSource) checkCurrentConfigMap() {
+	configMap, err := kaps.configMapInterface.Get(kaps.ctx, KubeName, metav1.GetOptions{})
+	if err != nil {
+		logrus.Errorf("Error getting KubeAdm config map : %v", err)
+	}
+
+	if err = kaps.setPrefixesFromConfigMap(configMap); err != nil {
+		logrus.Error(err)
+	}
+}
+
+func (kaps *KubeAdmPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.ConfigMap) error {
+	clusterConfiguration := &v1beta2.ClusterConfiguration{}
+	err := yaml.NewYAMLOrJSONDecoder(
+		strings.NewReader(configMap.Data["ClusterConfiguration"]), bufferSize,
+	).Decode(clusterConfiguration)
+
+	if err != nil {
+		return err
+	}
+
+	podSubnet := clusterConfiguration.Networking.PodSubnet
+	serviceSubnet := clusterConfiguration.Networking.ServiceSubnet
+
+	if podSubnet == "" {
+		logrus.Error("ClusterConfiguration.Networking.PodSubnet is empty")
+	}
+	if serviceSubnet == "" {
+		logrus.Error("ClusterConfiguration.Networking.ServiceSubnet is empty")
+	}
+
+	prefixes := []string{podSubnet, serviceSubnet}
+
+	kaps.prefixes.SetList(prefixes)
+	kaps.notify.Broadcast()
+	logrus.Infof("Prefixes sent from kubeadm source: %v", prefixes)
+
+	return nil
 }

@@ -19,12 +19,12 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	apiV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"sync"
 )
 
 const configMapPrefixesKey = "excluded_prefixes.yaml"
@@ -36,10 +36,11 @@ type ConfigMapPrefixSource struct {
 	configMapInterface v1.ConfigMapInterface
 	prefixes           utils.SynchronizedPrefixesContainer
 	ctx                context.Context
+	notify             Notifier
 }
 
 // NewConfigMapPrefixSource creates ConfigMapPrefixSource
-func NewConfigMapPrefixSource(ctx context.Context, notify *sync.Cond, name, namespace string) *ConfigMapPrefixSource {
+func NewConfigMapPrefixSource(ctx context.Context, notify Notifier, name, namespace string) *ConfigMapPrefixSource {
 	clientSet := FromContext(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(namespace)
 	cmps := ConfigMapPrefixSource{
@@ -47,9 +48,10 @@ func NewConfigMapPrefixSource(ctx context.Context, notify *sync.Cond, name, name
 		configMapNameSpace: namespace,
 		configMapInterface: configMapInterface,
 		ctx:                ctx,
+		notify:             notify,
 	}
 
-	go cmps.watchConfigMap(notify)
+	go cmps.watchConfigMap()
 	return &cmps
 }
 
@@ -58,8 +60,10 @@ func (cmps *ConfigMapPrefixSource) Prefixes() []string {
 	return cmps.prefixes.GetList()
 }
 
-func (cmps *ConfigMapPrefixSource) watchConfigMap(notify *sync.Cond) {
+func (cmps *ConfigMapPrefixSource) watchConfigMap() {
+	cmps.checkCurrentConfigMap()
 	configMapWatch, err := cmps.configMapInterface.Watch(cmps.ctx, metav1.ListOptions{})
+	// get config map and notify
 	if err != nil {
 		logrus.Errorf("Error creating config map watch: %v", err)
 		return
@@ -76,19 +80,44 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap(notify *sync.Cond) {
 				continue
 			}
 
-			prefixesField, ok := configMap.Data[configMapPrefixesKey]
-			if !ok {
+			if event.Type == watch.Deleted {
+				cmps.prefixes.SetList([]string{})
+				cmps.notify.Broadcast()
 				continue
 			}
 
-			prefixes, err := utils.YamlToPrefixes([]byte(prefixesField))
-			if err != nil {
-				logrus.Errorf("Can not unmarshal prefixes, err: %v", err.Error())
-				return
+			if err = cmps.setPrefixesFromConfigMap(configMap); err != nil {
+				logrus.Error(err)
 			}
-			cmps.prefixes.SetList(prefixes.PrefixesList)
-			notify.Broadcast()
-			logrus.Infof("Prefixes sent from config map source: %v", prefixes.PrefixesList)
+
 		}
 	}
+}
+
+func (cmps *ConfigMapPrefixSource) checkCurrentConfigMap() {
+	configMap, err := cmps.configMapInterface.Get(cmps.ctx, cmps.configMapName, metav1.GetOptions{})
+	if err != nil {
+		logrus.Errorf("Error getting config map : %v", err)
+	}
+
+	if err = cmps.setPrefixesFromConfigMap(configMap); err != nil {
+		logrus.Error(err)
+	}
+}
+
+func (cmps *ConfigMapPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.ConfigMap) error {
+	prefixesField, ok := configMap.Data[configMapPrefixesKey]
+	if !ok {
+		return nil
+	}
+
+	prefixes, err := utils.YamlToPrefixes([]byte(prefixesField))
+	if err != nil {
+		return errors.Errorf("Can not unmarshal prefixes, err: %v", err.Error())
+	}
+	cmps.prefixes.SetList(prefixes.PrefixesList)
+	cmps.notify.Broadcast()
+	logrus.Infof("Prefixes sent from config map source: %v", prefixes.PrefixesList)
+
+	return nil
 }

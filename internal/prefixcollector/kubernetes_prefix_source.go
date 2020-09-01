@@ -19,8 +19,6 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"sync"
-
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 )
@@ -38,7 +36,7 @@ func (kps *KubernetesPrefixSource) Prefixes() []string {
 }
 
 // NewKubernetesPrefixSource creates KubernetesPrefixSource
-func NewKubernetesPrefixSource(ctx context.Context, notify *sync.Cond) *KubernetesPrefixSource {
+func NewKubernetesPrefixSource(ctx context.Context, notify Notifier) *KubernetesPrefixSource {
 	kps := &KubernetesPrefixSource{
 		ctx: ctx,
 	}
@@ -47,14 +45,14 @@ func NewKubernetesPrefixSource(ctx context.Context, notify *sync.Cond) *Kubernet
 	return kps
 }
 
-func (kps *KubernetesPrefixSource) start(notify *sync.Cond) {
+func (kps *KubernetesPrefixSource) start(notify Notifier) {
 	clientSet := FromContext(kps.ctx)
 	for kps.ctx.Err() == nil {
 		kps.watchSubnets(notify, clientSet)
 	}
 }
 
-func (kps *KubernetesPrefixSource) watchSubnets(notify *sync.Cond, clientSet kubernetes.Interface) {
+func (kps *KubernetesPrefixSource) watchSubnets(notify Notifier, clientSet kubernetes.Interface) {
 	pw, err := watchPodCIDR(clientSet)
 	if err != nil {
 		logrus.Error(err)
@@ -72,7 +70,7 @@ func (kps *KubernetesPrefixSource) watchSubnets(notify *sync.Cond, clientSet kub
 	kps.waitForSubnets(notify, pw, sw)
 }
 
-func (kps *KubernetesPrefixSource) waitForSubnets(notify *sync.Cond, pw, sw *SubnetWatcher) {
+func (kps *KubernetesPrefixSource) waitForSubnets(notify Notifier, pw, sw *SubnetWatcher) {
 	var podSubnet, serviceSubnet string
 	for {
 		select {

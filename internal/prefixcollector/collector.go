@@ -32,6 +32,11 @@ type ExcludePrefixSource interface {
 	Prefixes() []string
 }
 
+// Notifier is entity used for listeners notification
+type Notifier interface {
+	Broadcast()
+}
+
 // ExcludePrefixCollector is service, collecting excluded prefixes from list of ExcludePrefixSource
 // and environment variable "EXCLUDED_PREFIXES"
 // and writing result to outputFilePath in yaml format
@@ -62,6 +67,9 @@ func NewExcludePrefixCollector(sources []ExcludePrefixSource, outputFilePath str
 // Start - starts every source, then begin monitoring notifyChan.
 // Updates exclude prefix file after every notification.
 func (epc *ExcludePrefixCollector) Start() {
+	// check current state of sources
+	epc.updateExcludedPrefixesConfigmap()
+
 	for {
 		epc.notify.L.Lock()
 		epc.notify.Wait()

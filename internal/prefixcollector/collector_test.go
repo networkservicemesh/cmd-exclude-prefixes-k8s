@@ -94,19 +94,28 @@ func TestCollectorWithDummySources(t *testing.T) {
 }
 
 func TestKubeAdmConfigSource(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 	expectedResult := []string{
 		"10.244.0.0/16",
 		"10.96.0.0/12",
 	}
 
 	cond := sync.NewCond(&sync.Mutex{})
-	ctx := createConfigMap(t, prefixcollector.KubeNamespace, kubeConfigMapPath)
+	configMap, ctx := createConfigMap(t, prefixcollector.KubeNamespace, kubeConfigMapPath)
 	sources := []prefixcollector.ExcludePrefixSource{
 		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
 	}
+	updateConfigMap(t, ctx, configMap, prefixcollector.KubeNamespace)
 
 	testCollector(t, cond, expectedResult, sources)
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+}
+
+func updateConfigMap(t *testing.T, ctx context.Context, configMap *v1.ConfigMap, namespace string) {
+	clientSet := prefixcollector.FromContext(ctx)
+	_, err := clientSet.CoreV1().ConfigMaps(namespace).Update(ctx, configMap, metav1.UpdateOptions{})
+	if err != nil {
+		t.Fatalf("Error updating config map %v/%v: %v", namespace, configMap.Name, err)
+	}
 }
 
 func TestConfigMapSource(t *testing.T) {
@@ -116,7 +125,7 @@ func TestConfigMapSource(t *testing.T) {
 	}
 	cond := sync.NewCond(&sync.Mutex{})
 
-	ctx := createConfigMap(t, configMapNamespace, configMapPath)
+	_, ctx := createConfigMap(t, configMapNamespace, configMapPath)
 	sources := []prefixcollector.ExcludePrefixSource{
 		prefixcollector.NewConfigMapPrefixSource(ctx,
 			cond,
@@ -129,17 +138,17 @@ func TestConfigMapSource(t *testing.T) {
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 }
 
-func createConfigMap(t *testing.T, namespace, configPath string) context.Context {
+func createConfigMap(t *testing.T, namespace, configPath string) (*v1.ConfigMap, context.Context) {
 	ctx := context.Background()
 	clientSet := fake.NewSimpleClientset()
 	configMap := getConfigMap(t, configPath)
 
 	ctx = context.WithValue(ctx, prefixcollector.ClientSetKey, clientSet)
-	_, _ = clientSet.CoreV1().
+	configMap, _ = clientSet.CoreV1().
 		ConfigMaps(namespace).
 		Create(ctx, configMap, metav1.CreateOptions{})
 
-	return ctx
+	return configMap, ctx
 }
 
 func testCollector(t *testing.T, cond *sync.Cond, expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {

@@ -18,8 +18,6 @@ package prefixcollector
 
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
-	"sync"
-	"time"
 )
 
 // EnvPrefixSource is environment excluded prefixes source
@@ -33,19 +31,9 @@ func (e *EnvPrefixSource) Prefixes() []string {
 }
 
 // NewEnvPrefixSource creates EnvPrefixSource
-func NewEnvPrefixSource(uncheckedPrefixes []string, notify *sync.Cond) *EnvPrefixSource {
+func NewEnvPrefixSource(uncheckedPrefixes []string) *EnvPrefixSource {
 	prefixes := utils.GetValidatedPrefixes(uncheckedPrefixes)
 	source := &EnvPrefixSource{}
 	source.prefixes.SetList(prefixes)
-	if prefixes != nil {
-		go source.notifyListeners(notify)
-	}
 	return source
-}
-
-func (e *EnvPrefixSource) notifyListeners(notify *sync.Cond) {
-	for {
-		notify.Broadcast()
-		<-time.After(time.Second * 10)
-	}
 }
