@@ -31,27 +31,11 @@ import (
 	"math/big"
 )
 
-// SubnetWatcher is watcher for kubernetes nodes and services subnets.
-type SubnetWatcher struct {
-	subnetCh <-chan *net.IPNet
-	stopCh   chan struct{}
-}
-
-// Stop closes stop channel of SubnetWatcher
-func (s *SubnetWatcher) Stop() {
-	close(s.stopCh)
-}
-
-// ResultChan returns channel of subnets
-func (s *SubnetWatcher) ResultChan() <-chan *net.IPNet {
-	return s.subnetCh
-}
-
 type keyFunc func(event watch.Event) (string, error)
 type subnetFunc func(event watch.Event) (*net.IPNet, error)
 
-func watchPodCIDR(clientset kubernetes.Interface) (*SubnetWatcher, error) {
-	nodeWatcher, err := clientset.CoreV1().Nodes().Watch(context.TODO(), metav1.ListOptions{})
+func watchPodCIDR(ctx context.Context, clientset kubernetes.Interface) (<-chan *net.IPNet, error) {
+	nodeWatcher, err := clientset.CoreV1().Nodes().Watch(ctx, metav1.ListOptions{})
 	if err != nil {
 		logrus.Error(err)
 		return nil, err
@@ -85,11 +69,11 @@ func watchPodCIDR(clientset kubernetes.Interface) (*SubnetWatcher, error) {
 		return ipNet, nil
 	}
 
-	return WatchSubnet(nodeWatcher, keyFunc, subnetFunc)
+	return WatchSubnet(ctx, nodeWatcher, keyFunc, subnetFunc)
 }
 
-func watchServiceIPAddr(cs kubernetes.Interface) (*SubnetWatcher, error) {
-	serviceWatcher, err := newServiceWatcher(cs)
+func watchServiceIPAddr(ctx context.Context, cs kubernetes.Interface) (<-chan *net.IPNet, error) {
+	serviceWatcher, err := newServiceWatcher(ctx, cs)
 	if err != nil {
 		logrus.Error(err)
 		return nil, err
@@ -120,7 +104,7 @@ func watchServiceIPAddr(cs kubernetes.Interface) (*SubnetWatcher, error) {
 		return ipToNet(net.ParseIP(ipAddr)), nil
 	}
 
-	return WatchSubnet(serviceWatcher, keyFunc, subnetFunc)
+	return WatchSubnet(ctx, serviceWatcher, keyFunc, subnetFunc)
 }
 
 func ipToNet(ipAddr net.IP) *net.IPNet {
@@ -130,18 +114,17 @@ func ipToNet(ipAddr net.IP) *net.IPNet {
 
 type serviceWatcher struct {
 	resultCh chan watch.Event
-	stopCh   chan struct{}
 }
 
 func (s *serviceWatcher) Stop() {
-	close(s.stopCh)
+	close(s.resultCh)
 }
 
 func (s *serviceWatcher) ResultChan() <-chan watch.Event {
 	return s.resultCh
 }
 
-func newServiceWatcher(cs kubernetes.Interface) (watch.Interface, error) {
+func newServiceWatcher(ctx context.Context, cs kubernetes.Interface) (watch.Interface, error) {
 	ns, err := getNamespaces(cs)
 	if err != nil {
 		return nil, err
@@ -150,7 +133,7 @@ func newServiceWatcher(cs kubernetes.Interface) (watch.Interface, error) {
 	stopCh := make(chan struct{})
 
 	for _, n := range ns {
-		w, err := cs.CoreV1().Services(n).Watch(context.TODO(), metav1.ListOptions{})
+		w, err := cs.CoreV1().Services(n).Watch(ctx, metav1.ListOptions{})
 		if err != nil {
 			logrus.Errorf("Unable to watch services in %v namespace: %v", n, err)
 			close(stopCh)
@@ -160,8 +143,6 @@ func newServiceWatcher(cs kubernetes.Interface) (watch.Interface, error) {
 		go func() {
 			for {
 				select {
-				case <-stopCh:
-					return
 				case e := <-w.ResultChan():
 					resultCh <- e
 				}
@@ -171,7 +152,6 @@ func newServiceWatcher(cs kubernetes.Interface) (watch.Interface, error) {
 
 	return &serviceWatcher{
 		resultCh: resultCh,
-		stopCh:   stopCh,
 	}, nil
 }
 
@@ -190,9 +170,9 @@ func getNamespaces(cs kubernetes.Interface) ([]string, error) {
 
 // WatchSubnet waits for subnets from resourceWatcher, gets subnetwork from watch.Event using subnetFunc.
 // All subnets received from resourceWatcher will be forwarded to subnetCh of returned SubnetWatcher.
-func WatchSubnet(resourceWatcher watch.Interface, keyFunc keyFunc, subnetFunc subnetFunc) (*SubnetWatcher, error) {
+func WatchSubnet(ctx context.Context, resourceWatcher watch.Interface,
+	keyFunc keyFunc, subnetFunc subnetFunc) (<-chan *net.IPNet, error) {
 	subnetCh := make(chan *net.IPNet, 10)
-	stopCh := make(chan struct{})
 
 	cache := map[string]string{}
 	var lastIPNet *net.IPNet
@@ -200,7 +180,7 @@ func WatchSubnet(resourceWatcher watch.Interface, keyFunc keyFunc, subnetFunc su
 	go func() {
 		for {
 			select {
-			case <-stopCh:
+			case <-ctx.Done():
 				resourceWatcher.Stop()
 				return
 			case event, ok := <-resourceWatcher.ResultChan():
@@ -246,10 +226,7 @@ func WatchSubnet(resourceWatcher watch.Interface, keyFunc keyFunc, subnetFunc su
 		}
 	}()
 
-	return &SubnetWatcher{
-		subnetCh: subnetCh,
-		stopCh:   stopCh,
-	}, nil
+	return subnetCh, nil
 }
 
 func maxCommonPrefixSubnet(s1, s2 *net.IPNet) *net.IPNet {

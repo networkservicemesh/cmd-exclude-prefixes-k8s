@@ -19,6 +19,7 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+	"net"
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
@@ -43,49 +44,47 @@ func NewKubernetesPrefixSource(ctx context.Context, notify Notifier) *Kubernetes
 		prefixes: utils.NewSynchronizedPrefixesContainer(),
 	}
 
-	go kps.start(notify)
+	go func() {
+		clientSet := KubernetesInterface(kps.ctx)
+		for kps.ctx.Err() == nil {
+			kps.watchSubnets(notify, clientSet)
+		}
+	}()
 	return kps
 }
 
-func (kps *KubernetesPrefixSource) start(notify Notifier) {
-	clientSet := KubernetesInterface(kps.ctx)
-	for kps.ctx.Err() == nil {
-		kps.watchSubnets(notify, clientSet)
-	}
-}
-
 func (kps *KubernetesPrefixSource) watchSubnets(notify Notifier, clientSet kubernetes.Interface) {
-	pw, err := watchPodCIDR(clientSet)
+	podChan, err := watchPodCIDR(kps.ctx, clientSet)
 	if err != nil {
 		logrus.Error(err)
 		return
 	}
-	defer pw.Stop()
 
-	sw, err := watchServiceIPAddr(clientSet)
+	serviceChan, err := watchServiceIPAddr(kps.ctx, clientSet)
 	if err != nil {
 		logrus.Error(err)
 		return
 	}
-	defer sw.Stop()
 
-	kps.waitForSubnets(notify, pw, sw)
+	kps.waitForSubnets(notify, podChan, serviceChan)
 }
 
-func (kps *KubernetesPrefixSource) waitForSubnets(notify Notifier, pw, sw *SubnetWatcher) {
+func (kps *KubernetesPrefixSource) waitForSubnets(notify Notifier, podChan, serviceChan <-chan *net.IPNet) {
 	var podSubnet, serviceSubnet string
 	for {
 		select {
-		case subnet, ok := <-pw.ResultChan():
+		case subnet, ok := <-podChan:
 			if !ok {
 				return
 			}
 			podSubnet = subnet.String()
-		case subnet, ok := <-sw.ResultChan():
+		case subnet, ok := <-serviceChan:
 			if !ok {
 				return
 			}
 			serviceSubnet = subnet.String()
+		case <-kps.ctx.Done():
+			return
 		}
 
 		prefixes := getPrefixes(podSubnet, serviceSubnet)

@@ -18,10 +18,13 @@ package prefixcollector_test
 
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
+	"context"
 	"fmt"
 	"net"
 	"testing"
 	"time"
+
+	"go.uber.org/goleak"
 
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
@@ -65,7 +68,7 @@ func NewDummyWatcher() *DummyWatcher {
 }
 
 func (d *DummyWatcher) Stop() {
-	panic("implement me")
+	close(d.eventCh)
 }
 
 func (d *DummyWatcher) ResultChan() <-chan watch.Event {
@@ -83,7 +86,10 @@ func checkSubnetWatcher(t *testing.T, subnetSequence, expectedSequence []string)
 	g := NewWithT(t)
 
 	dw := NewDummyWatcher()
-	sw, err := prefixcollector.WatchSubnet(dw, keyFuncDummy, subnetFuncDummy)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	subnetChan, err := prefixcollector.WatchSubnet(ctx, dw, keyFuncDummy, subnetFuncDummy)
 	g.Expect(err).To(BeNil())
 
 	for i := 0; i < len(subnetSequence); i++ {
@@ -92,7 +98,7 @@ func checkSubnetWatcher(t *testing.T, subnetSequence, expectedSequence []string)
 
 	for i := 0; i < len(expectedSequence); i++ {
 		select {
-		case e := <-sw.ResultChan():
+		case e := <-subnetChan:
 			g.Expect(e.String()).To(Equal(expectedSequence[i]))
 		case <-time.After(1 * time.Second):
 			if expectedSequence[i] != "-" {
@@ -104,6 +110,8 @@ func checkSubnetWatcher(t *testing.T, subnetSequence, expectedSequence []string)
 }
 
 func TestSimpleSubnetCollector(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
 	subnetSequence := []string{
 		"10.20.1.0/24",
 		"10.20.2.0/24",
@@ -116,6 +124,8 @@ func TestSimpleSubnetCollector(t *testing.T) {
 }
 
 func TestLastIpsAlreadyInSubnet(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
 	subnetSequence := []string{
 		"10.96.10.10/32",
 		"10.98.2.0/32",
@@ -132,6 +142,8 @@ func TestLastIpsAlreadyInSubnet(t *testing.T) {
 }
 
 func TestIntermediateIpsAlreadyInSubnet(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
 	subnetSequence := []string{
 		"10.96.10.10/32",
 		"10.98.2.0/32",
@@ -148,6 +160,8 @@ func TestIntermediateIpsAlreadyInSubnet(t *testing.T) {
 }
 
 func TestIpv6(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
 	subnetSequence := []string{
 		"100::1:0/112",
 		"100::2:0/112",

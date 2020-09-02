@@ -39,7 +39,7 @@ type Config struct {
 	ConfigMapNamespace string   `default:"default" desc:"Namespace of kubernetes config map" split_words:"true"`
 }
 
-const envPrefix = "nsm"
+const envPrefix = "exclude_prefixes_k8s"
 
 func main() {
 	// Capture signals to cleanup before exiting
