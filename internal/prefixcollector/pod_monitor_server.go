@@ -141,11 +141,8 @@ func newServiceWatcher(ctx context.Context, cs kubernetes.Interface) (watch.Inte
 		}
 
 		go func() {
-			for {
-				select {
-				case e := <-w.ResultChan():
-					resultCh <- e
-				}
+			for e := range w.ResultChan() {
+				resultCh <- e
 			}
 		}()
 	}
