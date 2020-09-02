@@ -22,18 +22,19 @@ import (
 
 // EnvPrefixSource is environment excluded prefixes source
 type EnvPrefixSource struct {
-	prefixes utils.SynchronizedPrefixesContainer
+	prefixes []string
 }
 
 // Prefixes returns prefixes from source
 func (e *EnvPrefixSource) Prefixes() []string {
-	return e.prefixes.GetList()
+	return e.prefixes
 }
 
 // NewEnvPrefixSource creates EnvPrefixSource
 func NewEnvPrefixSource(uncheckedPrefixes []string) *EnvPrefixSource {
 	prefixes := utils.GetValidatedPrefixes(uncheckedPrefixes)
-	source := &EnvPrefixSource{}
-	source.prefixes.SetList(prefixes)
+	source := &EnvPrefixSource{
+		prefixes: prefixes,
+	}
 	return source
 }

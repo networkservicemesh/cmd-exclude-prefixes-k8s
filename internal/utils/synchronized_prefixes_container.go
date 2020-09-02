@@ -16,24 +16,28 @@
 
 package utils
 
-import "sync"
+import (
+	"sync/atomic"
+)
 
 // SynchronizedPrefixesContainer - container with synchronized getter and setter
 type SynchronizedPrefixesContainer struct {
-	lock     sync.Mutex
-	prefixes []string
+	prefixes atomic.Value
 }
 
-// GetList returns prefixes list
-func (s *SynchronizedPrefixesContainer) GetList() []string {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	return s.prefixes
+// NewSynchronizedPrefixesContainer creates SynchronizedPrefixesContainer
+func NewSynchronizedPrefixesContainer() *SynchronizedPrefixesContainer {
+	container := &SynchronizedPrefixesContainer{}
+	container.prefixes.Store([]string{})
+	return container
 }
 
-// SetList sets prefixes list
-func (s *SynchronizedPrefixesContainer) SetList(list []string) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	s.prefixes = list
+// Load returns prefixes list
+func (s *SynchronizedPrefixesContainer) Load() []string {
+	return s.prefixes.Load().([]string)
+}
+
+// Store sets prefixes list
+func (s *SynchronizedPrefixesContainer) Store(list []string) {
+	s.prefixes.Store(list)
 }

@@ -57,7 +57,8 @@ const (
 )
 
 // NewExcludePrefixCollector creates ExcludePrefixCollector
-func NewExcludePrefixCollector(sources []ExcludePrefixSource, outputFilePath string, notify *sync.Cond) *ExcludePrefixCollector {
+func NewExcludePrefixCollector(outputFilePath string, notify *sync.Cond,
+	sources ...ExcludePrefixSource) *ExcludePrefixCollector {
 	collector := &ExcludePrefixCollector{
 		outputFilePath: outputFilePath,
 		notify:         notify,

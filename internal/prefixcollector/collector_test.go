@@ -130,7 +130,7 @@ func TestKubeAdmConfigSource(t *testing.T) {
 }
 
 func updateConfigMap(ctx context.Context, t *testing.T, configMap *v1.ConfigMap) {
-	clientSet := prefixcollector.FromContext(ctx)
+	clientSet := prefixcollector.KubernetesInterface(ctx)
 	_, err := clientSet.CoreV1().ConfigMaps(configMap.Namespace).Update(ctx, configMap, metav1.UpdateOptions{})
 	if err != nil {
 		t.Fatalf("Error updating config map %v/%v: %v", configMap.Namespace, configMap.Name, err)
@@ -142,7 +142,7 @@ func createConfigMap(t *testing.T, namespace, configPath string) (*v1.ConfigMap,
 	clientSet := fake.NewSimpleClientset()
 	configMap := getConfigMap(t, configPath)
 
-	ctx = context.WithValue(ctx, prefixcollector.ClientSetKey, clientSet)
+	ctx = prefixcollector.WithKubernetesInterface(ctx, clientSet)
 	configMap, err := clientSet.CoreV1().
 		ConfigMaps(namespace).
 		Create(ctx, configMap, metav1.CreateOptions{})
@@ -156,9 +156,9 @@ func createConfigMap(t *testing.T, namespace, configPath string) (*v1.ConfigMap,
 
 func testCollector(t *testing.T, cond *sync.Cond, expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
 	collector := prefixcollector.NewExcludePrefixCollector(
-		sources,
 		testExcludedPrefixesPath,
 		cond,
+		sources...,
 	)
 
 	go collector.Start()

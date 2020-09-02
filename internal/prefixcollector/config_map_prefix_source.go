@@ -35,14 +35,14 @@ type ConfigMapPrefixSource struct {
 	configMapName      string
 	configMapNameSpace string
 	configMapInterface v1.ConfigMapInterface
-	prefixes           utils.SynchronizedPrefixesContainer
+	prefixes           *utils.SynchronizedPrefixesContainer
 	ctx                context.Context
 	notify             Notifier
 }
 
 // NewConfigMapPrefixSource creates ConfigMapPrefixSource
 func NewConfigMapPrefixSource(ctx context.Context, notify Notifier, name, namespace string) *ConfigMapPrefixSource {
-	clientSet := FromContext(ctx)
+	clientSet := KubernetesInterface(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(namespace)
 	cmps := ConfigMapPrefixSource{
 		configMapName:      name,
@@ -50,6 +50,7 @@ func NewConfigMapPrefixSource(ctx context.Context, notify Notifier, name, namesp
 		configMapInterface: configMapInterface,
 		ctx:                ctx,
 		notify:             notify,
+		prefixes:           utils.NewSynchronizedPrefixesContainer(),
 	}
 
 	go cmps.watchConfigMap()
@@ -58,7 +59,7 @@ func NewConfigMapPrefixSource(ctx context.Context, notify Notifier, name, namesp
 
 // Prefixes returns prefixes from source
 func (cmps *ConfigMapPrefixSource) Prefixes() []string {
-	return cmps.prefixes.GetList()
+	return cmps.prefixes.Load()
 }
 
 func (cmps *ConfigMapPrefixSource) watchConfigMap() {
@@ -86,7 +87,7 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 			}
 
 			if event.Type == watch.Deleted {
-				cmps.prefixes.SetList([]string{})
+				cmps.prefixes.Store([]string{})
 				cmps.notify.Broadcast()
 				continue
 			}
@@ -121,7 +122,7 @@ func (cmps *ConfigMapPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Con
 	if err != nil {
 		return errors.Errorf("Can not unmarshal prefixes, err: %v", err.Error())
 	}
-	cmps.prefixes.SetList(prefixes.PrefixesList)
+	cmps.prefixes.Store(prefixes.PrefixesList)
 	cmps.notify.Broadcast()
 	logrus.Infof("Prefixes sent from config map source: %v", prefixes.PrefixesList)
 

@@ -27,19 +27,20 @@ import (
 // KubernetesPrefixSource is excluded prefix source, which get prefixes
 // from Kubernetes pods and services addresses
 type KubernetesPrefixSource struct {
-	prefixes utils.SynchronizedPrefixesContainer
+	prefixes *utils.SynchronizedPrefixesContainer
 	ctx      context.Context
 }
 
 // Prefixes returns prefixes from source
 func (kps *KubernetesPrefixSource) Prefixes() []string {
-	return kps.prefixes.GetList()
+	return kps.prefixes.Load()
 }
 
 // NewKubernetesPrefixSource creates KubernetesPrefixSource
 func NewKubernetesPrefixSource(ctx context.Context, notify Notifier) *KubernetesPrefixSource {
 	kps := &KubernetesPrefixSource{
-		ctx: ctx,
+		ctx:      ctx,
+		prefixes: utils.NewSynchronizedPrefixesContainer(),
 	}
 
 	go kps.start(notify)
@@ -47,7 +48,7 @@ func NewKubernetesPrefixSource(ctx context.Context, notify Notifier) *Kubernetes
 }
 
 func (kps *KubernetesPrefixSource) start(notify Notifier) {
-	clientSet := FromContext(kps.ctx)
+	clientSet := KubernetesInterface(kps.ctx)
 	for kps.ctx.Err() == nil {
 		kps.watchSubnets(notify, clientSet)
 	}
@@ -88,7 +89,7 @@ func (kps *KubernetesPrefixSource) waitForSubnets(notify Notifier, pw, sw *Subne
 		}
 
 		prefixes := getPrefixes(podSubnet, serviceSubnet)
-		kps.prefixes.SetList(prefixes)
+		kps.prefixes.Store(prefixes)
 		notify.Broadcast()
 	}
 }

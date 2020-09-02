@@ -41,24 +41,25 @@ const (
 // KubeAdmPrefixSource is KubeAdm ConfigMap excluded prefix source
 type KubeAdmPrefixSource struct {
 	configMapInterface v1.ConfigMapInterface
-	prefixes           utils.SynchronizedPrefixesContainer
+	prefixes           *utils.SynchronizedPrefixesContainer
 	ctx                context.Context
 	notify             Notifier
 }
 
 // Prefixes returns prefixes from source
 func (kaps *KubeAdmPrefixSource) Prefixes() []string {
-	return kaps.prefixes.GetList()
+	return kaps.prefixes.Load()
 }
 
 // NewKubeAdmPrefixSource creates KubeAdmPrefixSource
 func NewKubeAdmPrefixSource(ctx context.Context, notify Notifier) *KubeAdmPrefixSource {
-	clientSet := FromContext(ctx)
+	clientSet := KubernetesInterface(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(KubeNamespace)
 	kaps := KubeAdmPrefixSource{
 		configMapInterface: configMapInterface,
 		ctx:                ctx,
 		notify:             notify,
+		prefixes:           utils.NewSynchronizedPrefixesContainer(),
 	}
 
 	go kaps.watchKubeAdmConfigMap()
@@ -90,7 +91,7 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 			}
 
 			if event.Type == watch.Deleted {
-				kaps.prefixes.SetList([]string{})
+				kaps.prefixes.Store([]string{})
 				kaps.notify.Broadcast()
 				continue
 			}
@@ -137,7 +138,7 @@ func (kaps *KubeAdmPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Confi
 
 	prefixes := []string{podSubnet, serviceSubnet}
 
-	kaps.prefixes.SetList(prefixes)
+	kaps.prefixes.Store(prefixes)
 	kaps.notify.Broadcast()
 	logrus.Infof("Prefixes sent from kubeadm source: %v", prefixes)
 

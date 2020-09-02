@@ -73,21 +73,17 @@ func main() {
 		span.Logger().Fatalf("Failed to build Kubernetes clientset: %v", err)
 	}
 
-	ctx = context.WithValue(ctx, prefixcollector.ClientSetKey, kubernetes.Interface(clientset))
-
+	ctx = prefixcollector.WithKubernetesInterface(ctx, kubernetes.Interface(clientset))
 	cond := sync.NewCond(&sync.Mutex{})
-	sources := []prefixcollector.ExcludePrefixSource{
+
+	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
+		excludedprefixes.PrefixesFilePathDefault,
+		cond,
 		prefixcollector.NewEnvPrefixSource(config.ExcludedPrefixes),
 		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
 		prefixcollector.NewKubernetesPrefixSource(ctx, cond),
 		prefixcollector.NewConfigMapPrefixSource(ctx, cond,
 			prefixcollector.DefaultConfigMapName, config.ConfigMapNamespace),
-	}
-
-	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
-		sources,
-		excludedprefixes.PrefixesFilePathDefault,
-		cond,
 	)
 
 	go excludePrefixService.Start()
