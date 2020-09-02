@@ -58,6 +58,8 @@ func newDummyPrefixSource(prefixes []string) *dummyPrefixSource {
 func TestCollectorWithDummySources(t *testing.T) {
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 	cond := sync.NewCond(&sync.Mutex{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	sources := []prefixcollector.ExcludePrefixSource{
 		newDummyPrefixSource(
 			[]string{
@@ -80,8 +82,7 @@ func TestCollectorWithDummySources(t *testing.T) {
 		"168.92.0.0/16",
 		"134.0.0.0/8",
 	}
-
-	testCollector(t, cond, expectedResult, sources)
+	testCollector(ctx, t, cond, expectedResult, sources)
 }
 
 func TestConfigMapSource(t *testing.T) {
@@ -106,7 +107,7 @@ func TestConfigMapSource(t *testing.T) {
 	}
 	updateConfigMap(ctx, t, configMap)
 
-	testCollector(t, cond, expectedResult, sources)
+	testCollector(ctx, t, cond, expectedResult, sources)
 }
 
 func TestKubeAdmConfigSource(t *testing.T) {
@@ -126,7 +127,7 @@ func TestKubeAdmConfigSource(t *testing.T) {
 	}
 	updateConfigMap(ctx, t, configMap)
 
-	testCollector(t, cond, expectedResult, sources)
+	testCollector(ctx, t, cond, expectedResult, sources)
 }
 
 func updateConfigMap(ctx context.Context, t *testing.T, configMap *v1.ConfigMap) {
@@ -154,15 +155,16 @@ func createConfigMap(t *testing.T, namespace, configPath string) (*v1.ConfigMap,
 	return configMap, ctx
 }
 
-func testCollector(t *testing.T, cond *sync.Cond, expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
+func testCollector(ctx context.Context, t *testing.T, cond *sync.Cond,
+	expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
 	collector := prefixcollector.NewExcludePrefixCollector(
+		ctx,
 		testExcludedPrefixesPath,
 		cond,
 		sources...,
 	)
 
 	go collector.Start()
-	defer collector.Stop()
 
 	if err := watchFile(t, len(sources)); err != nil {
 		t.Fatal("Error watching file: ", err)

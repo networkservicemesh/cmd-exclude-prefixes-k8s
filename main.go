@@ -77,6 +77,7 @@ func main() {
 	cond := sync.NewCond(&sync.Mutex{})
 
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
+		ctx,
 		excludedprefixes.PrefixesFilePathDefault,
 		cond,
 		prefixcollector.NewEnvPrefixSource(config.ExcludedPrefixes),

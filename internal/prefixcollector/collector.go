@@ -19,10 +19,9 @@ package prefixcollector
 
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
+	"context"
 	"io/ioutil"
 	"sync"
-
-	"go.uber.org/atomic"
 
 	"github.com/sirupsen/logrus"
 
@@ -47,7 +46,7 @@ type ExcludePrefixCollector struct {
 	outputFilePath   string
 	sources          []ExcludePrefixSource
 	previousPrefixes []string
-	interrupted      atomic.Bool
+	ctx              context.Context
 }
 
 const (
@@ -57,12 +56,13 @@ const (
 )
 
 // NewExcludePrefixCollector creates ExcludePrefixCollector
-func NewExcludePrefixCollector(outputFilePath string, notify *sync.Cond,
+func NewExcludePrefixCollector(ctx context.Context, outputFilePath string, notify *sync.Cond,
 	sources ...ExcludePrefixSource) *ExcludePrefixCollector {
 	collector := &ExcludePrefixCollector{
 		outputFilePath: outputFilePath,
 		notify:         notify,
 		sources:        sources,
+		ctx:            ctx,
 	}
 
 	return collector
@@ -71,10 +71,11 @@ func NewExcludePrefixCollector(outputFilePath string, notify *sync.Cond,
 // Start - begin monitoring sources.
 // Updates exclude prefix file after every notification.
 func (epc *ExcludePrefixCollector) Start() {
+	go epc.waitForContextDone()
 	// check current state of sources
 	epc.updateExcludedPrefixesConfigmap()
 
-	for !epc.interrupted.Load() {
+	for epc.ctx.Err() == nil {
 		epc.notify.L.Lock()
 		epc.notify.Wait()
 		epc.notify.L.Unlock()
@@ -82,9 +83,8 @@ func (epc *ExcludePrefixCollector) Start() {
 	}
 }
 
-// Stop - stops collector
-func (epc *ExcludePrefixCollector) Stop() {
-	epc.interrupted.Store(true)
+func (epc *ExcludePrefixCollector) waitForContextDone() {
+	<-epc.ctx.Done()
 	epc.notify.Broadcast()
 }
 
