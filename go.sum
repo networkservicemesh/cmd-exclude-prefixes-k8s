@@ -114,8 +114,6 @@ github.com/docker/libnetwork v0.8.0-dev.2.0.20190925143933-c8a5fca4a652/go.mod h
 github.com/docker/spdystream v0.0.0-20160310174837-449fdfce4d96/go.mod h1:Qh8CwZgvJUkLughtfhJv5dyTYa91l1fOUCrgjqmcifM=
 github.com/dustin/go-humanize v0.0.0-20171111073723-bb3d318650d4/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
-github.com/edwarnicke/dl v0.0.0-20200425181122-b4e16e4cb9fd h1:5zwZ9UonM/y9QZ0ZvEFYivhcKD87dljGFRUWT3Y4z60=
-github.com/edwarnicke/dl v0.0.0-20200425181122-b4e16e4cb9fd/go.mod h1:JNDJq+FmZ859j/Y/3NfWdUdNpdEP6lmDdHLWGEMzzRo=
 github.com/edwarnicke/exechelper v1.0.1 h1:0FwYHBKyLK2Ce97u86BXI3tnD6Dwlt9Qj2XkPgfP1Bg=
 github.com/edwarnicke/exechelper v1.0.1/go.mod h1:/T271jtNX/ND4De6pa2aRy2+8sNtyCDB1A2pp4M+fUs=
 github.com/edwarnicke/grpcfd v0.0.0-20200803222316-dd18d0d4c179/go.mod h1:ASf3/EsWDwoZkIVQxSuTTp7PO1ADh1UVWyugSY9IMEQ=
