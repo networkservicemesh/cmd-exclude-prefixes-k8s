@@ -143,9 +143,13 @@ func createConfigMap(t *testing.T, namespace, configPath string) (*v1.ConfigMap,
 	configMap := getConfigMap(t, configPath)
 
 	ctx = context.WithValue(ctx, prefixcollector.ClientSetKey, clientSet)
-	configMap, _ = clientSet.CoreV1().
+	configMap, err := clientSet.CoreV1().
 		ConfigMaps(namespace).
 		Create(ctx, configMap, metav1.CreateOptions{})
+
+	if err != nil {
+		t.Fatalf("Error creating config map: %v", err)
+	}
 
 	return configMap, ctx
 }

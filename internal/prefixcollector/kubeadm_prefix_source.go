@@ -19,9 +19,6 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"strings"
-	"time"
-
 	"github.com/sirupsen/logrus"
 	apiV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta2"
+	"strings"
 )
 
 const (
@@ -99,7 +97,7 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 			if err = kaps.setPrefixesFromConfigMap(configMap); err != nil {
 				logrus.Error(err)
 			}
-		case <-time.After(time.Second * 10):
+		case <-kaps.ctx.Done():
 		}
 	}
 }

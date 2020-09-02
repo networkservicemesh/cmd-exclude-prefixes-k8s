@@ -19,8 +19,6 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"time"
-
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	apiV1 "k8s.io/api/core/v1"
@@ -65,7 +63,6 @@ func (cmps *ConfigMapPrefixSource) Prefixes() []string {
 func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 	cmps.checkCurrentConfigMap()
 	configMapWatch, err := cmps.configMapInterface.Watch(cmps.ctx, metav1.ListOptions{})
-	// get config map and notify
 	if err != nil {
 		logrus.Errorf("Error creating config map watch: %v", err)
 		return
@@ -96,7 +93,7 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 			if err = cmps.setPrefixesFromConfigMap(configMap); err != nil {
 				logrus.Error(err)
 			}
-		case <-time.After(time.Second * 10):
+		case <-cmps.ctx.Done():
 		}
 	}
 }
