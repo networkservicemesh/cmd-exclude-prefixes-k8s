@@ -39,6 +39,8 @@ type Config struct {
 	ConfigMapNamespace string   `default:"default" desc:"Namespace of kubernetes config map" split_words:"true"`
 }
 
+const envPrefix = "nsm"
+
 func main() {
 	// Capture signals to cleanup before exiting
 	ctx := signalctx.WithSignals(context.Background())
@@ -51,11 +53,11 @@ func main() {
 
 	// Get clientSetConfig from environment
 	config := &Config{}
-	if err := envconfig.Usage("nsm", config); err != nil {
+	if err := envconfig.Usage(envPrefix, config); err != nil {
 		logrus.Fatal(err)
 	}
-	if err := envconfig.Process("nsm", config); err != nil {
-		logrus.Fatalf("error processing clientSetConfig from env: %v", err)
+	if err := envconfig.Process(envPrefix, config); err != nil {
+		logrus.Fatalf("Error processing clientSetConfig from env: %v", err)
 	}
 
 	span.Logger().Printf("Building Kubernetes clientset...")
@@ -64,7 +66,7 @@ func main() {
 		span.Logger().Fatalf("Failed to build Kubernetes clientset: %v", err)
 	}
 
-	span.Logger().Infof("Starting prefix service...")
+	span.Logger().Info("Starting prefix service...")
 
 	clientset, err := kubernetes.NewForConfig(clientSetConfig)
 	if err != nil {

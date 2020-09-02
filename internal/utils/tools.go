@@ -71,16 +71,16 @@ func UnorderedSlicesEquals(x, y []string) bool {
 		return false
 	}
 	diff := make(map[string]int, len(x))
-	for _, _x := range x {
-		diff[_x]++
+	for _, xValue := range x {
+		diff[xValue]++
 	}
-	for _, _y := range y {
-		if _, ok := diff[_y]; !ok {
+	for _, yValue := range y {
+		if _, ok := diff[yValue]; !ok {
 			return false
 		}
-		diff[_y]--
-		if diff[_y] == 0 {
-			delete(diff, _y)
+		diff[yValue]--
+		if diff[yValue] == 0 {
+			delete(diff, yValue)
 		}
 	}
 	return len(diff) == 0

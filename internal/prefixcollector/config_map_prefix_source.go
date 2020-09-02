@@ -103,6 +103,7 @@ func (cmps *ConfigMapPrefixSource) checkCurrentConfigMap() {
 	configMap, err := cmps.configMapInterface.Get(cmps.ctx, cmps.configMapName, metav1.GetOptions{})
 	if err != nil {
 		logrus.Errorf("Error getting config map : %v", err)
+		return
 	}
 
 	if err = cmps.setPrefixesFromConfigMap(configMap); err != nil {

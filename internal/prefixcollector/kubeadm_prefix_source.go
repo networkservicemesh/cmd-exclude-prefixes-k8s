@@ -33,8 +33,8 @@ import (
 const (
 	// KubeNamespace is KubeAdm ConfigMap namespace
 	KubeNamespace = "kube-system"
-	// KubeName is KubeAdm ConfigMap name
-	KubeName   = "kubeadm-config"
+	// kubeName is KubeAdm ConfigMap name
+	kubeName   = "kubeadm-config"
 	bufferSize = 4096
 )
 
@@ -85,7 +85,7 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 			}
 
 			configMap, ok := event.Object.(*apiV1.ConfigMap)
-			if !ok || configMap.Name != KubeName {
+			if !ok || configMap.Name != kubeName {
 				continue
 			}
 
@@ -104,9 +104,10 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 }
 
 func (kaps *KubeAdmPrefixSource) checkCurrentConfigMap() {
-	configMap, err := kaps.configMapInterface.Get(kaps.ctx, KubeName, metav1.GetOptions{})
+	configMap, err := kaps.configMapInterface.Get(kaps.ctx, kubeName, metav1.GetOptions{})
 	if err != nil {
 		logrus.Errorf("Error getting KubeAdm config map : %v", err)
+		return
 	}
 
 	if err = kaps.setPrefixesFromConfigMap(configMap); err != nil {
