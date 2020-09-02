@@ -158,13 +158,12 @@ func createConfigMap(t *testing.T, namespace, configPath string) (*v1.ConfigMap,
 func testCollector(ctx context.Context, t *testing.T, cond *sync.Cond,
 	expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
 	collector := prefixcollector.NewExcludePrefixCollector(
-		ctx,
 		testExcludedPrefixesPath,
 		cond,
 		sources...,
 	)
 
-	go collector.Start()
+	go collector.Serve(ctx)
 
 	if err := watchFile(t, len(sources)); err != nil {
 		t.Fatal("Error watching file: ", err)

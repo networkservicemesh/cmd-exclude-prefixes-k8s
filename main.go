@@ -77,7 +77,6 @@ func main() {
 	cond := sync.NewCond(&sync.Mutex{})
 
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
-		ctx,
 		excludedprefixes.PrefixesFilePathDefault,
 		cond,
 		prefixcollector.NewEnvPrefixSource(config.ExcludedPrefixes),
@@ -87,7 +86,7 @@ func main() {
 			prefixcollector.DefaultConfigMapName, config.ConfigMapNamespace),
 	)
 
-	go excludePrefixService.Start()
+	go excludePrefixService.Serve(ctx)
 
 	span.Finish() // exclude main cycle run time from span timing
 	<-ctx.Done()

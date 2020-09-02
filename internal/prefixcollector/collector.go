@@ -46,7 +46,6 @@ type ExcludePrefixCollector struct {
 	outputFilePath   string
 	sources          []ExcludePrefixSource
 	previousPrefixes []string
-	ctx              context.Context
 }
 
 const (
@@ -56,36 +55,33 @@ const (
 )
 
 // NewExcludePrefixCollector creates ExcludePrefixCollector
-func NewExcludePrefixCollector(ctx context.Context, outputFilePath string, notify *sync.Cond,
+func NewExcludePrefixCollector(outputFilePath string, notify *sync.Cond,
 	sources ...ExcludePrefixSource) *ExcludePrefixCollector {
 	collector := &ExcludePrefixCollector{
 		outputFilePath: outputFilePath,
 		notify:         notify,
 		sources:        sources,
-		ctx:            ctx,
 	}
 
 	return collector
 }
 
-// Start - begin monitoring sources.
+// Serve - begin monitoring sources.
 // Updates exclude prefix file after every notification.
-func (epc *ExcludePrefixCollector) Start() {
-	go epc.waitForContextDone()
+func (epc *ExcludePrefixCollector) Serve(ctx context.Context) {
+	go func() {
+		<-ctx.Done()
+		epc.notify.Broadcast()
+	}()
 	// check current state of sources
 	epc.updateExcludedPrefixesConfigmap()
 
-	for epc.ctx.Err() == nil {
+	for ctx.Err() == nil {
 		epc.notify.L.Lock()
 		epc.notify.Wait()
 		epc.notify.L.Unlock()
 		epc.updateExcludedPrefixesConfigmap()
 	}
-}
-
-func (epc *ExcludePrefixCollector) waitForContextDone() {
-	<-epc.ctx.Done()
-	epc.notify.Broadcast()
 }
 
 func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
