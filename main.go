@@ -34,14 +34,14 @@ import (
 )
 
 const (
-	defaultConfigMapName = "nsm-config"
-	envPrefix            = "exclude_prefixes_k8s"
+	envPrefix = "exclude_prefixes_k8s"
 )
 
 // Config - configuration for cmd-exclude-prefixes-k8s
 type Config struct {
 	ExcludedPrefixes   []string `desc:"List of excluded prefixes" split_words:"true"`
 	ConfigMapNamespace string   `default:"default" desc:"Namespace of kubernetes config map" split_words:"true"`
+	ConfigMapName      string   `default:"nsm-config" desc:"Name of kubernetes config map" split_words:"true"`
 }
 
 func main() {
@@ -90,7 +90,7 @@ func main() {
 		envSource,
 		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
 		prefixcollector.NewKubernetesPrefixSource(ctx, cond),
-		prefixcollector.NewConfigMapPrefixSource(ctx, cond, defaultConfigMapName, config.ConfigMapNamespace),
+		prefixcollector.NewConfigMapPrefixSource(ctx, cond, config.ConfigMapName, config.ConfigMapNamespace),
 	)
 
 	go excludePrefixService.Serve(ctx)

@@ -123,7 +123,9 @@ func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 
 // prefixesToYaml converts list of prefixes to yaml file
 func prefixesToYaml(prefixesList []string) ([]byte, error) {
-	source := prefixes{prefixesList}
+	source := struct {
+		Prefixes []string
+	}{prefixesList}
 
 	bytes, err := yaml.Marshal(source)
 	if err != nil {
