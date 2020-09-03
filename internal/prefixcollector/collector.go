@@ -39,11 +39,6 @@ type ExcludePrefixSource interface {
 	Prefixes() []string
 }
 
-// prefixes is struct containing prefixes list
-type prefixes struct {
-	PrefixesList []string `json:"Prefixes"`
-}
-
 // Notifier is entity used for listeners notification
 type Notifier interface {
 	Broadcast()
