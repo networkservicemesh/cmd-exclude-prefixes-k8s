@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	defaultConfigMapName = "nsm-config-map"
+	defaultConfigMapName = "nsm-config"
 	envPrefix            = "exclude_prefixes_k8s"
 )
 
