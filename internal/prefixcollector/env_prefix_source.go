@@ -18,8 +18,6 @@ package prefixcollector
 
 import (
 	"net"
-
-	"github.com/sirupsen/logrus"
 )
 
 // EnvPrefixSource is environment excluded prefixes source
@@ -33,25 +31,27 @@ func (e *EnvPrefixSource) Prefixes() []string {
 }
 
 // NewEnvPrefixSource creates EnvPrefixSource
-func NewEnvPrefixSource(uncheckedPrefixes []string) *EnvPrefixSource {
-	prefixes := getValidatedPrefixes(uncheckedPrefixes)
-	source := &EnvPrefixSource{
-		prefixes: prefixes,
+func NewEnvPrefixSource(uncheckedPrefixes []string) (*EnvPrefixSource, error) {
+	prefixes, err := getValidatedPrefixes(uncheckedPrefixes)
+	if err != nil {
+		return nil, err
 	}
-	return source
+
+	return &EnvPrefixSource{
+		prefixes: prefixes,
+	}, nil
 }
 
 // getValidatedPrefixes returns list of validated via CIDR notation parsing prefixes
-func getValidatedPrefixes(prefixes []string) []string {
+func getValidatedPrefixes(prefixes []string) ([]string, error) {
 	var validatedPrefixes []string
 	for _, prefix := range prefixes {
 		_, _, err := net.ParseCIDR(prefix)
 		if err != nil {
-			logrus.Errorf("Error parsing CIDR from %v: %v", prefix, err)
-			continue
+			return nil, err
 		}
 		validatedPrefixes = append(validatedPrefixes, prefix)
 	}
 
-	return validatedPrefixes
+	return validatedPrefixes, nil
 }

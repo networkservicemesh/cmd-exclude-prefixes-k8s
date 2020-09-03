@@ -79,10 +79,15 @@ func main() {
 	ctx = prefixcollector.WithKubernetesInterface(ctx, kubernetes.Interface(clientSet))
 	cond := sync.NewCond(&sync.Mutex{})
 
+	envSource, err := prefixcollector.NewEnvPrefixSource(config.ExcludedPrefixes)
+	if err != nil {
+		span.Logger().Fatalf("Failed to parse prefixes from environment: ", err)
+	}
+
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
 		excludedprefixes.PrefixesFilePathDefault,
 		cond,
-		prefixcollector.NewEnvPrefixSource(config.ExcludedPrefixes),
+		envSource,
 		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
 		prefixcollector.NewKubernetesPrefixSource(ctx, cond),
 		prefixcollector.NewConfigMapPrefixSource(ctx, cond, defaultConfigMapName, config.ConfigMapNamespace),
