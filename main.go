@@ -81,7 +81,7 @@ func main() {
 
 	envSource, err := prefixcollector.NewEnvPrefixSource(config.ExcludedPrefixes)
 	if err != nil {
-		span.Logger().Fatalf("Failed to parse prefixes from environment: ", err)
+		span.Logger().Fatalf("Failed to parse prefixes from environment: %v", err)
 	}
 
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
