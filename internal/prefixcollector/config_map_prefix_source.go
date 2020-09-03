@@ -89,7 +89,7 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 			}
 
 			if event.Type == watch.Deleted {
-				cmps.prefixes.Store([]string{})
+				cmps.prefixes.Store([]string(nil))
 				cmps.notify.Broadcast()
 				continue
 			}
@@ -123,9 +123,9 @@ func (cmps *ConfigMapPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Con
 	if err != nil {
 		return errors.Errorf("Can not unmarshal prefixes, err: %v", err.Error())
 	}
-	cmps.prefixes.Store(prefixes.PrefixesList)
+	cmps.prefixes.Store(prefixes)
 	cmps.notify.Broadcast()
-	logrus.Infof("Prefixes sent from config map source: %v", prefixes.PrefixesList)
+	logrus.Infof("Prefixes sent from config map source: %v", prefixes)
 
 	return nil
 }

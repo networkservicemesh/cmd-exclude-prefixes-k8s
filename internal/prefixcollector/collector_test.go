@@ -179,7 +179,7 @@ func testCollector(ctx context.Context, t *testing.T, cond *sync.Cond,
 		t.Fatal("Error transforming yaml to prefixes: ", err)
 	}
 
-	require.ElementsMatch(t, expectedResult, prefixes.PrefixesList)
+	require.ElementsMatch(t, expectedResult, prefixes)
 }
 
 func watchFile(t *testing.T, fileUpdatesRequired int) error {

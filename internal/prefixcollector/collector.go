@@ -23,14 +23,25 @@ import (
 	"io/ioutil"
 	"sync"
 
+	"github.com/ghodss/yaml"
+
 	"github.com/sirupsen/logrus"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 )
 
+const (
+	outputFilePermissions = 0600
+)
+
 // ExcludePrefixSource is source of excluded prefixes
 type ExcludePrefixSource interface {
 	Prefixes() []string
+}
+
+// prefixes is struct containing prefixes list
+type prefixes struct {
+	PrefixesList []string `json:"Prefixes"`
 }
 
 // Notifier is entity used for listeners notification
@@ -46,12 +57,6 @@ type ExcludePrefixCollector struct {
 	sources          []ExcludePrefixSource
 	previousPrefixes []string
 }
-
-const (
-	// DefaultConfigMapName is default name of nsm kubernetes ConfigMap
-	DefaultConfigMapName  = "nsm-config-volume"
-	outputFilePermissions = 0600
-)
 
 // NewExcludePrefixCollector creates ExcludePrefixCollector
 func NewExcludePrefixCollector(outputFilePath string, notify *sync.Cond,
@@ -104,7 +109,7 @@ func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 	}
 	epc.previousPrefixes = newPrefixes
 
-	data, err := utils.PrefixesToYaml(newPrefixes)
+	data, err := prefixesToYaml(newPrefixes)
 	if err != nil {
 		logrus.Errorf("Can not create marshal prefixes, err: %v", err.Error())
 		return
@@ -114,4 +119,16 @@ func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 	if err != nil {
 		logrus.Fatalf("Unable to write into file: %v", err.Error())
 	}
+}
+
+// prefixesToYaml converts list of prefixes to yaml file
+func prefixesToYaml(prefixesList []string) ([]byte, error) {
+	source := prefixes{prefixesList}
+
+	bytes, err := yaml.Marshal(source)
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes, nil
 }

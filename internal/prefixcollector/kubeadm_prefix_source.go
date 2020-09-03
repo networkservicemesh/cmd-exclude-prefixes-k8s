@@ -93,7 +93,7 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 			}
 
 			if event.Type == watch.Deleted {
-				kaps.prefixes.Store([]string{})
+				kaps.prefixes.Store([]string(nil))
 				kaps.notify.Broadcast()
 				continue
 			}

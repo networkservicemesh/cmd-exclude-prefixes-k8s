@@ -18,50 +18,20 @@
 package utils
 
 import (
-	"net"
-
 	"github.com/ghodss/yaml"
 )
 
-// Prefixes is struct containing prefixes list
-type Prefixes struct {
-	PrefixesList []string `json:"Prefixes"`
-}
-
-// PrefixesToYaml converts list of prefixes to yaml file
-func PrefixesToYaml(prefixesList []string) ([]byte, error) {
-	source := Prefixes{prefixesList}
-
-	bytes, err := yaml.Marshal(source)
-	if err != nil {
-		return nil, err
-	}
-
-	return bytes, nil
-}
-
-// YamlToPrefixes converts yaml file to Prefixes
-func YamlToPrefixes(bytes []byte) (Prefixes, error) {
-	destination := Prefixes{}
+// YamlToPrefixes converts yaml file to slice of prefixes
+func YamlToPrefixes(bytes []byte) ([]string, error) {
+	destination := struct {
+		Prefixes []string
+	}{}
 	err := yaml.Unmarshal(bytes, &destination)
 	if err != nil {
-		return Prefixes{}, err
+		return destination.Prefixes, err
 	}
 
-	return destination, nil
-}
-
-// GetValidatedPrefixes returns list of validated via CIDR notation parsing prefixes
-func GetValidatedPrefixes(prefixes []string) []string {
-	var validatedPrefixes []string
-	for _, prefix := range prefixes {
-		_, _, err := net.ParseCIDR(prefix)
-		if err == nil {
-			validatedPrefixes = append(validatedPrefixes, prefix)
-		}
-	}
-
-	return validatedPrefixes
+	return destination.Prefixes, nil
 }
 
 // UnorderedSlicesEquals returns true if specified slice x is equal to specified slice y

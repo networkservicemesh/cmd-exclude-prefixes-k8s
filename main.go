@@ -33,13 +33,16 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
 )
 
+const (
+	defaultConfigMapName = "nsm-config-map"
+	envPrefix            = "exclude_prefixes_k8s"
+)
+
 // Config - configuration for cmd-exclude-prefixes-k8s
 type Config struct {
 	ExcludedPrefixes   []string `desc:"List of excluded prefixes" split_words:"true"`
 	ConfigMapNamespace string   `default:"default" desc:"Namespace of kubernetes config map" split_words:"true"`
 }
-
-const envPrefix = "exclude_prefixes_k8s"
 
 func main() {
 	// Capture signals to cleanup before exiting
@@ -82,8 +85,7 @@ func main() {
 		prefixcollector.NewEnvPrefixSource(config.ExcludedPrefixes),
 		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
 		prefixcollector.NewKubernetesPrefixSource(ctx, cond),
-		prefixcollector.NewConfigMapPrefixSource(ctx, cond,
-			prefixcollector.DefaultConfigMapName, config.ConfigMapNamespace),
+		prefixcollector.NewConfigMapPrefixSource(ctx, cond, defaultConfigMapName, config.ConfigMapNamespace),
 	)
 
 	go excludePrefixService.Serve(ctx)

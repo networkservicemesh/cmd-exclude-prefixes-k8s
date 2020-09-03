@@ -28,7 +28,7 @@ type SynchronizedPrefixesContainer struct {
 // NewSynchronizedPrefixesContainer creates SynchronizedPrefixesContainer
 func NewSynchronizedPrefixesContainer() *SynchronizedPrefixesContainer {
 	container := &SynchronizedPrefixesContainer{}
-	container.prefixes.Store([]string{})
+	container.prefixes.Store([]string(nil))
 	return container
 }
 
