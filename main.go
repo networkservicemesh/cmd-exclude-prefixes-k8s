@@ -63,6 +63,11 @@ func main() {
 		logrus.Fatalf("Error processing clientSetConfig from env: %v", err)
 	}
 
+	envPrefixes, err := utils.GetValidatedPrefixes(config.ExcludedPrefixes)
+	if err != nil {
+		span.Logger().Fatalf("Failed to parse prefixes from environment: %v", err)
+	}
+
 	span.Logger().Printf("Building Kubernetes clientSet...")
 	clientSetConfig, err := utils.NewClientSetConfig()
 	if err != nil {
@@ -79,15 +84,10 @@ func main() {
 	ctx = prefixcollector.WithKubernetesInterface(ctx, kubernetes.Interface(clientSet))
 	cond := sync.NewCond(&sync.Mutex{})
 
-	envSource, err := prefixcollector.NewEnvPrefixSource(config.ExcludedPrefixes)
-	if err != nil {
-		span.Logger().Fatalf("Failed to parse prefixes from environment: %v", err)
-	}
-
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
 		excludedprefixes.PrefixesFilePathDefault,
 		cond,
-		envSource,
+		prefixcollector.NewEnvPrefixSource(envPrefixes),
 		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
 		prefixcollector.NewKubernetesPrefixSource(ctx, cond),
 		prefixcollector.NewConfigMapPrefixSource(ctx, cond, config.ConfigMapName, config.ConfigMapNamespace),
