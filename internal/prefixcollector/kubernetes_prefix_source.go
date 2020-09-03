@@ -73,6 +73,8 @@ func (kps *KubernetesPrefixSource) waitForSubnets(notify Notifier, podChan, serv
 	var podSubnet, serviceSubnet string
 	for {
 		select {
+		case <-kps.ctx.Done():
+			return
 		case subnet, ok := <-podChan:
 			if !ok {
 				return
@@ -83,8 +85,6 @@ func (kps *KubernetesPrefixSource) waitForSubnets(notify Notifier, podChan, serv
 				return
 			}
 			serviceSubnet = subnet.String()
-		case <-kps.ctx.Done():
-			return
 		}
 
 		prefixes := getPrefixes(podSubnet, serviceSubnet)

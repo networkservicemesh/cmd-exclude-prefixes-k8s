@@ -60,20 +60,20 @@ func main() {
 		logrus.Fatalf("Error processing clientSetConfig from env: %v", err)
 	}
 
-	span.Logger().Printf("Building Kubernetes clientset...")
+	span.Logger().Printf("Building Kubernetes clientSet...")
 	clientSetConfig, err := utils.NewClientSetConfig()
 	if err != nil {
-		span.Logger().Fatalf("Failed to build Kubernetes clientset: %v", err)
+		span.Logger().Fatalf("Failed to build Kubernetes clientSet: %v", err)
 	}
 
 	span.Logger().Info("Starting prefix service...")
 
-	clientset, err := kubernetes.NewForConfig(clientSetConfig)
+	clientSet, err := kubernetes.NewForConfig(clientSetConfig)
 	if err != nil {
-		span.Logger().Fatalf("Failed to build Kubernetes clientset: %v", err)
+		span.Logger().Fatalf("Failed to build Kubernetes clientSet: %v", err)
 	}
 
-	ctx = prefixcollector.WithKubernetesInterface(ctx, kubernetes.Interface(clientset))
+	ctx = prefixcollector.WithKubernetesInterface(ctx, kubernetes.Interface(clientSet))
 	cond := sync.NewCond(&sync.Mutex{})
 
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(

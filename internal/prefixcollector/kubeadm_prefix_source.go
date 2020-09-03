@@ -74,8 +74,10 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 		return
 	}
 
-	for kaps.ctx.Err() == nil {
+	for {
 		select {
+		case <-kaps.ctx.Done():
+			return
 		case event, ok := <-configMapWatch.ResultChan():
 			if !ok {
 				return
@@ -99,7 +101,6 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 			if err = kaps.setPrefixesFromConfigMap(configMap); err != nil {
 				logrus.Error(err)
 			}
-		case <-kaps.ctx.Done():
 		}
 	}
 }

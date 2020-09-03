@@ -70,8 +70,10 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 		return
 	}
 
-	for cmps.ctx.Err() == nil {
+	for {
 		select {
+		case <-cmps.ctx.Done():
+			return
 		case event, ok := <-configMapWatch.ResultChan():
 			if !ok {
 				return
@@ -95,7 +97,6 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 			if err = cmps.setPrefixesFromConfigMap(configMap); err != nil {
 				logrus.Error(err)
 			}
-		case <-cmps.ctx.Done():
 		}
 	}
 }

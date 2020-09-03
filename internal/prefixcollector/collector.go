@@ -39,7 +39,6 @@ type Notifier interface {
 }
 
 // ExcludePrefixCollector is service, collecting excluded prefixes from list of ExcludePrefixSource
-// and environment variable "EXCLUDED_PREFIXES"
 // and writing result to outputFilePath in yaml format
 type ExcludePrefixCollector struct {
 	notify           *sync.Cond
