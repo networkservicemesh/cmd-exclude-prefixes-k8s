@@ -17,7 +17,7 @@
 package prefixcollector
 
 import (
-	"cmd-exclude-prefixes-k8s/internal/utils"
+	"cmd-exclude-prefixes-k8s/pkg/utils"
 	"context"
 
 	"github.com/pkg/errors"

@@ -17,7 +17,7 @@
 package prefixcollector_test
 
 import (
-	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
+	"cmd-exclude-prefixes-k8s/pkg/prefixcollector"
 	"context"
 	"path/filepath"
 	"sync"
@@ -30,7 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"cmd-exclude-prefixes-k8s/internal/utils"
+	"cmd-exclude-prefixes-k8s/pkg/utils"
 	"io/ioutil"
 	"testing"
 )
