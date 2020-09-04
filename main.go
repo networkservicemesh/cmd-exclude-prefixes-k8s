@@ -17,8 +17,8 @@
 package main
 
 import (
-	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
-	"cmd-exclude-prefixes-k8s/internal/utils"
+	"cmd-exclude-prefixes-k8s/pkg/prefixcollector"
+	"cmd-exclude-prefixes-k8s/pkg/utils"
 	"context"
 	"net"
 	"sync"
