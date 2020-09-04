@@ -17,7 +17,7 @@
 package prefixcollector_test
 
 import (
-	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
+	"cmd-exclude-prefixes-k8s/pkg/prefixcollector"
 	"context"
 	"fmt"
 	"net"

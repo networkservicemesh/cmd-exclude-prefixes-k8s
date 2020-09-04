@@ -17,5 +17,5 @@
 package imports
 
 //go:generate cmd /C "set GO111MODULE=on"
-//go:generate cmd /C "go get github.com/edwarnicke/imports-gen@v1.0.1"
+//go:generate cmd /C "cd %TEMP% && go get github.com/edwarnicke/imports-gen@v1.0.1"
 //go:generate ${GOPATH}/bin/imports-gen
