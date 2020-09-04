@@ -18,7 +18,7 @@
 package prefixcollector
 
 import (
-	"cmd-exclude-prefixes-k8s/pkg/utils"
+	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"io/ioutil"
 	"sync"
