@@ -117,8 +117,6 @@ github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25Kn
 github.com/edwarnicke/exechelper v1.0.1 h1:0FwYHBKyLK2Ce97u86BXI3tnD6Dwlt9Qj2XkPgfP1Bg=
 github.com/edwarnicke/exechelper v1.0.1/go.mod h1:/T271jtNX/ND4De6pa2aRy2+8sNtyCDB1A2pp4M+fUs=
 github.com/edwarnicke/grpcfd v0.0.0-20200803222316-dd18d0d4c179/go.mod h1:ASf3/EsWDwoZkIVQxSuTTp7PO1ADh1UVWyugSY9IMEQ=
-github.com/edwarnicke/imports-gen v1.0.1 h1:33/s9gcutzOBjTwcOUxMWghWVlhZMzPWYIXzMv/0/6w=
-github.com/edwarnicke/imports-gen v1.0.1/go.mod h1:aCSe8SMtEh1O51cS5s3vxK6Lu3sPMkQwAqnye8AROwo=
 github.com/edwarnicke/serialize v0.0.0-20200705214914-ebc43080eecf/go.mod h1:XvbCO/QGsl3X8RzjBMoRpkm54FIAZH5ChK2j+aox7pw=
 github.com/elazarl/goproxy v0.0.0-20180725130230-947c36da3153/go.mod h1:/Zj4wYkgs4iZTTu3o/KG3Itv/qCCa8VVMlb3i9OVuzc=
 github.com/emicklei/go-restful v0.0.0-20170410110728-ff4f55a20633/go.mod h1:otzb+WCGbkyDHkqmQmT5YD2WR4BBwUdeQoFo8l/7tVs=
