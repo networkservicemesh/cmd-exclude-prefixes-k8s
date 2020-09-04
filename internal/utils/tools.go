@@ -18,8 +18,6 @@
 package utils
 
 import (
-	"net"
-
 	"github.com/ghodss/yaml"
 )
 
@@ -56,18 +54,4 @@ func UnorderedSlicesEquals(x, y []string) bool {
 		}
 	}
 	return len(diff) == 0
-}
-
-// GetValidatedPrefixes returns list of validated via CIDR notation parsing prefixes
-func GetValidatedPrefixes(prefixes []string) ([]string, error) {
-	var validatedPrefixes []string
-	for _, prefix := range prefixes {
-		_, _, err := net.ParseCIDR(prefix)
-		if err != nil {
-			return nil, err
-		}
-		validatedPrefixes = append(validatedPrefixes, prefix)
-	}
-
-	return validatedPrefixes, nil
 }

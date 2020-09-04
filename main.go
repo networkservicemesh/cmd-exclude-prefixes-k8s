@@ -20,9 +20,8 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+	"net"
 	"sync"
-
-	"github.com/networkservicemesh/sdk/pkg/networkservice/common/excludedprefixes"
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
@@ -42,6 +41,7 @@ type Config struct {
 	ExcludedPrefixes   []string `desc:"List of excluded prefixes" split_words:"true"`
 	ConfigMapNamespace string   `default:"default" desc:"Namespace of kubernetes config map" split_words:"true"`
 	ConfigMapName      string   `default:"nsm-config" desc:"Name of kubernetes config map" split_words:"true"`
+	PrefixesFilePath   string   `default:"/var/lib/networkservicemesh/config/excluded_prefixes.yaml" desc:"Excluded prefixes file absolute path" split_words:"true"`
 }
 
 func main() {
@@ -63,7 +63,7 @@ func main() {
 		logrus.Fatalf("Error processing clientSetConfig from env: %v", err)
 	}
 
-	envPrefixes, err := utils.GetValidatedPrefixes(config.ExcludedPrefixes)
+	envPrefixes, err := validatedPrefixes(config.ExcludedPrefixes)
 	if err != nil {
 		span.Logger().Fatalf("Failed to parse prefixes from environment: %v", err)
 	}
@@ -85,7 +85,7 @@ func main() {
 	cond := sync.NewCond(&sync.Mutex{})
 
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
-		excludedprefixes.PrefixesFilePathDefault,
+		config.PrefixesFilePath,
 		cond,
 		prefixcollector.NewEnvPrefixSource(envPrefixes),
 		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
@@ -97,4 +97,18 @@ func main() {
 
 	span.Finish() // exclude main cycle run time from span timing
 	<-ctx.Done()
+}
+
+// validatedPrefixes returns list of validated via CIDR notation parsing prefixes
+func validatedPrefixes(prefixes []string) ([]string, error) {
+	var validatedPrefixes []string
+	for _, prefix := range prefixes {
+		_, _, err := net.ParseCIDR(prefix)
+		if err != nil {
+			return nil, err
+		}
+		validatedPrefixes = append(validatedPrefixes, prefix)
+	}
+
+	return validatedPrefixes, nil
 }
