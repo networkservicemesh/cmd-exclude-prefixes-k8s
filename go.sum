@@ -442,6 +442,8 @@ github.com/networkservicemesh/api v0.0.0-20200813164503-9585b38e6772 h1:aPQQyhWX
 github.com/networkservicemesh/api v0.0.0-20200813164503-9585b38e6772/go.mod h1:6hH0TfujZVin9W/6rWY7JnmNBNRvUrgXhr1aWyKuQKI=
 github.com/networkservicemesh/sdk v0.0.0-20200827102544-4b23de9a2ad4 h1:f9eM0YDoCRa9JKuiLEMqB4vrWRWqhgzi30fKfnHAUIQ=
 github.com/networkservicemesh/sdk v0.0.0-20200827102544-4b23de9a2ad4/go.mod h1:SJGik/6TFV7VQxP6SQwwjdfpjwz8N//UfWFfxxZpN6I=
+github.com/networkservicemesh/sdk-k8s v0.0.0-20200904140642-16d8d58f0ff6 h1:lHDpIdUAed0jg+V/mgtY82UFvLKPokj4EfbfipU+ckE=
+github.com/networkservicemesh/sdk-k8s v0.0.0-20200904140642-16d8d58f0ff6/go.mod h1:QRXvDXKXNcU8Dxik0Qvr1L8LxrcnIJE6bubyNmEZgPM=
 github.com/olekukonko/tablewriter v0.0.0-20170122224234-a0225b3f23b5/go.mod h1:vsDQFd/mU46D+Z4whnwzcISnGGzXWMclvtLoiIKAKIo=
 github.com/olekukonko/tablewriter v0.0.1/go.mod h1:vsDQFd/mU46D+Z4whnwzcISnGGzXWMclvtLoiIKAKIo=
 github.com/onsi/ginkgo v0.0.0-20170829012221-11459a886d9c/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
