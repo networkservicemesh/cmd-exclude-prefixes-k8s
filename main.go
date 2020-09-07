@@ -18,10 +18,11 @@ package main
 
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
-	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"net"
 	"sync"
+
+	"github.com/networkservicemesh/sdk-k8s/pkg/k8s"
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
@@ -69,7 +70,7 @@ func main() {
 	}
 
 	span.Logger().Printf("Building Kubernetes clientSet...")
-	clientSetConfig, err := utils.NewClientSetConfig()
+	clientSetConfig, err := k8s.NewClientSetConfig()
 	if err != nil {
 		span.Logger().Fatalf("Failed to build Kubernetes clientSet: %v", err)
 	}
