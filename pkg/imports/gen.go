@@ -14,23 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package utils
+package imports
 
-import (
-	"os"
-	"path/filepath"
-
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-)
-
-// NewClientSetConfig creates ClientSetConfig from config file.
-// If config file path not provided via env variable KUBECONFIG, default path "HOME/.kube/config" will be used
-func NewClientSetConfig() (*rest.Config, error) {
-	configPath := os.Getenv("KUBECONFIG")
-	if configPath == "" {
-		configPath = filepath.Join(os.Getenv("HOME"), ".kube", "config")
-	}
-	config, err := clientcmd.BuildConfigFromFlags("", configPath)
-	return config, err
-}
+//go:generate bash -c "cd $(mktemp -d) && GO111MODULE=on go get github.com/edwarnicke/imports-gen@v1.0.1"
+//go:generate ${GOPATH}/bin/imports-gen
