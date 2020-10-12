@@ -42,8 +42,8 @@ type Config struct {
 	ExcludedPrefixes      []string `desc:"List of excluded prefixes" split_words:"true"`
 	ConfigMapNamespace    string   `default:"default" desc:"Namespace of user config map" split_words:"true"`
 	ConfigMapName         string   `default:"excluded-prefixes-config" desc:"Name of user config map" split_words:"true"`
-	NsmConfigMapNamespace string   `default:"default" desc:"Namespace of nsm config map" split_words:"true"`
-	NsmConfigMapName      string   `default:"nsm-config" desc:"Name of nsm config map" split_words:"true"`
+	NSMConfigMapNamespace string   `default:"default" desc:"Namespace of nsm config map" split_words:"true"`
+	NSMConfigMapName      string   `default:"nsm-config" desc:"Name of nsm config map" split_words:"true"`
 }
 
 func main() {
@@ -88,8 +88,8 @@ func main() {
 
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
 		cond,
-		config.NsmConfigMapName,
-		config.NsmConfigMapNamespace,
+		config.NSMConfigMapName,
+		config.NSMConfigMapNamespace,
 		prefixcollector.NewEnvPrefixSource(envPrefixes),
 		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
 		prefixcollector.NewKubernetesPrefixSource(ctx, cond),

@@ -20,6 +20,7 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+	"errors"
 	"io/ioutil"
 	"path/filepath"
 	"sync"
@@ -181,13 +182,13 @@ func (eps *ExcludedPrefixesSuite) testCollector(ctx context.Context, cond *sync.
 		sources...,
 	)
 
-	waitGroup := sync.WaitGroup{}
-	waitGroup.Add(1)
-	eps.watchConfigMap(ctx, &waitGroup)
+	errCh := eps.watchConfigMap(ctx)
 
 	go collector.Serve(ctx)
 
-	waitGroup.Wait()
+	if err := <-errCh; err != nil {
+		eps.T().Fatal("Error watching config map: ", err)
+	}
 
 	configMap, err := eps.clientSet.CoreV1().ConfigMaps(configMapNamespace).Get(ctx, nsmConfigMapName, metav1.GetOptions{})
 	if err != nil {
@@ -202,30 +203,35 @@ func (eps *ExcludedPrefixesSuite) testCollector(ctx context.Context, cond *sync.
 	eps.Require().ElementsMatch(expectedResult, prefixes)
 }
 
-func (eps *ExcludedPrefixesSuite) watchConfigMap(ctx context.Context, waitGroup *sync.WaitGroup) {
+func (eps *ExcludedPrefixesSuite) watchConfigMap(ctx context.Context) <-chan error {
 	watcher, err := eps.clientSet.CoreV1().ConfigMaps(configMapNamespace).Watch(ctx, metav1.ListOptions{})
 	if err != nil {
 		eps.T().Fatalf("Error watching configmap: %v", err)
 	}
 
+	errorCh := make(chan error)
 	go func() {
 		for {
 			select {
 			case event := <-watcher.ResultChan():
 				configMap := event.Object.(*v1.ConfigMap)
 				if event.Type == watch.Error {
-					eps.T().Fatal("Error watching configmap")
+					errorCh <- errors.New("error watching configmap")
+					return
 				}
 
 				if configMap.Name == nsmConfigMapName && (event.Type == watch.Added || event.Type == watch.Modified) {
-					waitGroup.Done()
+					close(errorCh)
 					return
 				}
 			case <-ctx.Done():
-				eps.T().Fatal("Context canceled")
+				errorCh <- errors.New("context canceled")
+				return
 			}
 		}
 	}()
+
+	return errorCh
 }
 
 func getConfigMap(t *testing.T, filePath string) *v1.ConfigMap {

@@ -59,7 +59,6 @@ type ExcludePrefixCollector struct {
 // NewExcludePrefixCollector creates ExcludePrefixCollector
 func NewExcludePrefixCollector(notify *sync.Cond, configMapName, configMapNamespace string,
 	sources ...ExcludePrefixSource) *ExcludePrefixCollector {
-
 	return &ExcludePrefixCollector{
 		nsmConfigMapName:      configMapName,
 		nsmConfigMapNamespace: configMapNamespace,
