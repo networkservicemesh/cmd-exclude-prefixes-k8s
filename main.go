@@ -39,10 +39,11 @@ const (
 
 // Config - configuration for cmd-exclude-prefixes-k8s
 type Config struct {
-	ExcludedPrefixes   []string `desc:"List of excluded prefixes" split_words:"true"`
-	ConfigMapNamespace string   `default:"default" desc:"Namespace of kubernetes config map" split_words:"true"`
-	ConfigMapName      string   `default:"nsm-config" desc:"Name of kubernetes config map" split_words:"true"`
-	PrefixesFilePath   string   `default:"/var/lib/networkservicemesh/config/excluded_prefixes.yaml" desc:"Excluded prefixes file absolute path" split_words:"true"`
+	ExcludedPrefixes      []string `desc:"List of excluded prefixes" split_words:"true"`
+	ConfigMapNamespace    string   `default:"default" desc:"Namespace of user config map" split_words:"true"`
+	ConfigMapName         string   `default:"excluded-prefixes-config" desc:"Name of user config map" split_words:"true"`
+	NsmConfigMapNamespace string   `default:"default" desc:"Namespace of nsm config map" split_words:"true"`
+	NsmConfigMapName      string   `default:"nsm-config" desc:"Name of nsm config map" split_words:"true"`
 }
 
 func main() {
@@ -86,8 +87,9 @@ func main() {
 	cond := sync.NewCond(&sync.Mutex{})
 
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
-		config.PrefixesFilePath,
 		cond,
+		config.NsmConfigMapName,
+		config.NsmConfigMapNamespace,
 		prefixcollector.NewEnvPrefixSource(envPrefixes),
 		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
 		prefixcollector.NewKubernetesPrefixSource(ctx, cond),

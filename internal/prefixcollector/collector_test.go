@@ -18,29 +18,31 @@ package prefixcollector_test
 
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
+	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+	"io/ioutil"
 	"path/filepath"
 	"sync"
+	"testing"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/ghodss/yaml"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
-
-	"cmd-exclude-prefixes-k8s/internal/utils"
-	"io/ioutil"
-	"testing"
 )
 
 const (
-	configMapPath            = "./testfiles/configMap.yaml"
-	kubeConfigMapPath        = "./testfiles/kubeAdmConfigMap.yaml"
-	testExcludedPrefixesPath = "./testfiles/excludedPrefixes.yaml"
-	configMapName            = "test"
-	configMapNamespace       = "default"
+	configMapPath       = "./testfiles/configMap.yaml"
+	kubeConfigMapPath   = "./testfiles/kubeAdmConfigMap.yaml"
+	nsmConfigMapPath    = "./testfiles/nsmConfigMap.yaml"
+	excludedPrefixesKey = "excluded_prefixes.yaml"
+	configMapNamespace  = "default"
+	userConfigMapName   = "test"
+	nsmConfigMapName    = "nsm-config"
 )
 
 type dummyPrefixSource struct {
@@ -55,11 +57,22 @@ func newDummyPrefixSource(prefixes []string) *dummyPrefixSource {
 	return &dummyPrefixSource{prefixes}
 }
 
-func TestCollectorWithDummySources(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+type ExcludedPrefixesSuite struct {
+	suite.Suite
+	clientSet kubernetes.Interface
+}
+
+func (eps *ExcludedPrefixesSuite) SetupSuite() {
+	eps.clientSet = fake.NewSimpleClientset()
+	eps.createConfigMap(configMapNamespace, nsmConfigMapPath)
+}
+
+func (eps *ExcludedPrefixesSuite) TestCollectorWithDummySources() {
+	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
 	cond := sync.NewCond(&sync.Mutex{})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
 	defer cancel()
+
 	sources := []prefixcollector.ExcludePrefixSource{
 		newDummyPrefixSource(
 			[]string{
@@ -82,18 +95,19 @@ func TestCollectorWithDummySources(t *testing.T) {
 		"168.92.0.0/16",
 		"134.0.0.0/8",
 	}
-	testCollector(ctx, t, cond, expectedResult, sources)
+
+	eps.testCollector(ctx, cond, expectedResult, sources)
 }
 
-func TestConfigMapSource(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
+	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
 	expectedResult := []string{
 		"168.0.0.0/10",
 		"1.0.0.0/11",
 	}
 	cond := sync.NewCond(&sync.Mutex{})
 
-	configMap, ctx := createConfigMap(t, configMapNamespace, configMapPath)
+	configMap, ctx := eps.createConfigMap(configMapNamespace, configMapPath)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -101,128 +115,117 @@ func TestConfigMapSource(t *testing.T) {
 		prefixcollector.NewConfigMapPrefixSource(
 			ctx,
 			cond,
-			configMapName,
+			userConfigMapName,
 			configMapNamespace,
 		),
 	}
-	updateConfigMap(ctx, t, configMap)
 
-	testCollector(ctx, t, cond, expectedResult, sources)
+	_, err := eps.clientSet.CoreV1().ConfigMaps(configMap.Namespace).Update(ctx, configMap, metav1.UpdateOptions{})
+	if err != nil {
+		eps.T().Fatalf("Error updating config map %v/%v: %v", configMap.Namespace, configMap.Name, err)
+	}
+
+	eps.testCollector(ctx, cond, expectedResult, sources)
 }
 
-func TestKubeAdmConfigSource(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
+	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
 	expectedResult := []string{
 		"10.244.0.0/16",
 		"10.96.0.0/12",
 	}
 
 	cond := sync.NewCond(&sync.Mutex{})
-	configMap, ctx := createConfigMap(t, prefixcollector.KubeNamespace, kubeConfigMapPath)
+	configMap, ctx := eps.createConfigMap(prefixcollector.KubeNamespace, kubeConfigMapPath)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	sources := []prefixcollector.ExcludePrefixSource{
 		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
 	}
-	updateConfigMap(ctx, t, configMap)
 
-	testCollector(ctx, t, cond, expectedResult, sources)
-}
-
-func updateConfigMap(ctx context.Context, t *testing.T, configMap *v1.ConfigMap) {
-	clientSet := prefixcollector.KubernetesInterface(ctx)
-	_, err := clientSet.CoreV1().ConfigMaps(configMap.Namespace).Update(ctx, configMap, metav1.UpdateOptions{})
+	_, err := eps.clientSet.CoreV1().ConfigMaps(configMap.Namespace).Update(ctx, configMap, metav1.UpdateOptions{})
 	if err != nil {
-		t.Fatalf("Error updating config map %v/%v: %v", configMap.Namespace, configMap.Name, err)
+		eps.T().Fatalf("Error updating config map %v/%v: %v", configMap.Namespace, configMap.Name, err)
 	}
+
+	eps.testCollector(ctx, cond, expectedResult, sources)
 }
 
-func createConfigMap(t *testing.T, namespace, configPath string) (*v1.ConfigMap, context.Context) {
-	ctx := context.Background()
-	clientSet := fake.NewSimpleClientset()
-	configMap := getConfigMap(t, configPath)
+func TestExcludedPrefixesSuite(t *testing.T) {
+	suite.Run(t, &ExcludedPrefixesSuite{})
+}
 
-	ctx = prefixcollector.WithKubernetesInterface(ctx, clientSet)
-	configMap, err := clientSet.CoreV1().
+func (eps *ExcludedPrefixesSuite) createConfigMap(namespace, configPath string) (*v1.ConfigMap, context.Context) {
+	ctx := context.Background()
+	configMap := getConfigMap(eps.T(), configPath)
+
+	ctx = prefixcollector.WithKubernetesInterface(ctx, eps.clientSet)
+	configMap, err := eps.clientSet.CoreV1().
 		ConfigMaps(namespace).
 		Create(ctx, configMap, metav1.CreateOptions{})
 
 	if err != nil {
-		t.Fatalf("Error creating config map: %v", err)
+		eps.T().Fatalf("Error creating config map: %v", err)
 	}
 
 	return configMap, ctx
 }
 
-func testCollector(ctx context.Context, t *testing.T, cond *sync.Cond,
+func (eps *ExcludedPrefixesSuite) testCollector(ctx context.Context, cond *sync.Cond,
 	expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
 	collector := prefixcollector.NewExcludePrefixCollector(
-		testExcludedPrefixesPath,
 		cond,
+		nsmConfigMapName,
+		configMapNamespace,
 		sources...,
 	)
 
+	waitGroup := sync.WaitGroup{}
+	waitGroup.Add(1)
+	eps.watchConfigMap(ctx, &waitGroup)
+
 	go collector.Serve(ctx)
 
-	if err := watchFile(t, len(sources)); err != nil {
-		t.Fatal("Error watching file: ", err)
-	}
+	waitGroup.Wait()
 
-	bytes, err := ioutil.ReadFile(testExcludedPrefixesPath)
+	configMap, err := eps.clientSet.CoreV1().ConfigMaps(configMapNamespace).Get(ctx, nsmConfigMapName, metav1.GetOptions{})
 	if err != nil {
-		t.Fatal("Error reading test file: ", err)
+		eps.T().Fatal("Error getting nsm config map: ", err)
 	}
 
-	prefixes, err := utils.YamlToPrefixes(bytes)
+	prefixes, err := utils.YamlToPrefixes([]byte(configMap.Data[excludedPrefixesKey]))
 	if err != nil {
-		t.Fatal("Error transforming yaml to prefixes: ", err)
+		eps.T().Fatal("Error transforming yaml to prefixes: ", err)
 	}
 
-	require.ElementsMatch(t, expectedResult, prefixes)
+	eps.Require().ElementsMatch(expectedResult, prefixes)
 }
 
-func watchFile(t *testing.T, fileUpdatesRequired int) error {
-	watcher, err := fsnotify.NewWatcher()
+func (eps *ExcludedPrefixesSuite) watchConfigMap(ctx context.Context, waitGroup *sync.WaitGroup) {
+	watcher, err := eps.clientSet.CoreV1().ConfigMaps(configMapNamespace).Watch(ctx, metav1.ListOptions{})
 	if err != nil {
-		return err
+		eps.T().Fatalf("Error watching configmap: %v", err)
 	}
-	defer func() {
-		if closeErr := watcher.Close(); closeErr != nil {
-			t.Error(closeErr)
-		}
-	}()
-
-	var waitGroup sync.WaitGroup
-	waitGroup.Add(1)
 
 	go func() {
-		for i := 0; i < fileUpdatesRequired; {
+		for {
 			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
+			case event := <-watcher.ResultChan():
+				configMap := event.Object.(*v1.ConfigMap)
+				if event.Type == watch.Error {
+					eps.T().Fatal("Error watching configmap")
+				}
+
+				if configMap.Name == nsmConfigMapName && (event.Type == watch.Added || event.Type == watch.Modified) {
+					waitGroup.Done()
 					return
 				}
-				if event.Op&fsnotify.Write == fsnotify.Write {
-					i++
-				}
-			case watcherError, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				t.Error("error watching file:", watcherError)
+			case <-ctx.Done():
+				eps.T().Fatal("Context canceled")
 			}
 		}
-		waitGroup.Done()
 	}()
-
-	err = watcher.Add(testExcludedPrefixesPath)
-	if err != nil {
-		return err
-	}
-
-	waitGroup.Wait()
-	return nil
 }
 
 func getConfigMap(t *testing.T, filePath string) *v1.ConfigMap {
