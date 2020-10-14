@@ -103,10 +103,6 @@ func main() {
 		prefixcollector.NewConfigMapPrefixSource(ctx, cond, config.ConfigMapName, config.ConfigMapNamespace),
 	)
 
-	if err != nil {
-		span.Logger().Fatalf("Error creating collector: %v", err)
-	}
-
 	go excludePrefixService.Serve(ctx)
 
 	span.Finish() // exclude main cycle run time from span timing
