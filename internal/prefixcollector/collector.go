@@ -20,8 +20,15 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"io/ioutil"
 	"sync"
+
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
+
+	apiV1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/watch"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/ghodss/yaml"
 
@@ -31,7 +38,7 @@ import (
 )
 
 const (
-	outputFilePermissions = 0600
+	configMapKey = "excluded_prefixes.yaml"
 )
 
 // ExcludePrefixSource is source of excluded prefixes
@@ -47,43 +54,87 @@ type Notifier interface {
 // ExcludePrefixCollector is service, collecting excluded prefixes from list of ExcludePrefixSource
 // and writing result to outputFilePath in yaml format
 type ExcludePrefixCollector struct {
-	notify           *sync.Cond
-	outputFilePath   string
-	sources          []ExcludePrefixSource
-	previousPrefixes []string
+	notify                *sync.Cond
+	nsmConfigMapName      string
+	nsmConfigMapNamespace string
+	sources               []ExcludePrefixSource
+	previousPrefixes      *utils.SynchronizedPrefixesContainer
+	configMapInterface    v1.ConfigMapInterface
 }
 
 // NewExcludePrefixCollector creates ExcludePrefixCollector
-func NewExcludePrefixCollector(outputFilePath string, notify *sync.Cond,
+func NewExcludePrefixCollector(notify *sync.Cond, configMapName, configMapNamespace string,
 	sources ...ExcludePrefixSource) *ExcludePrefixCollector {
-	collector := &ExcludePrefixCollector{
-		outputFilePath: outputFilePath,
-		notify:         notify,
-		sources:        sources,
+	return &ExcludePrefixCollector{
+		nsmConfigMapName:      configMapName,
+		nsmConfigMapNamespace: configMapNamespace,
+		notify:                notify,
+		sources:               sources,
+		previousPrefixes:      utils.NewSynchronizedPrefixesContainer(),
 	}
-
-	return collector
 }
 
 // Serve - begin monitoring sources.
 // Updates exclude prefix file after every notification.
 func (epc *ExcludePrefixCollector) Serve(ctx context.Context) {
+	epc.configMapInterface = KubernetesInterface(ctx).CoreV1().ConfigMaps(epc.nsmConfigMapNamespace)
 	go func() {
-		<-ctx.Done()
+		epc.monitorNSMConfigMap(ctx)
 		epc.notify.Broadcast()
 	}()
+
 	// check current state of sources
-	epc.updateExcludedPrefixesConfigmap()
+	epc.updateExcludedPrefixesConfigmap(ctx)
 
 	for ctx.Err() == nil {
 		epc.notify.L.Lock()
 		epc.notify.Wait()
 		epc.notify.L.Unlock()
-		epc.updateExcludedPrefixesConfigmap()
+		epc.updateExcludedPrefixesConfigmap(ctx)
 	}
 }
 
-func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
+func (epc *ExcludePrefixCollector) monitorNSMConfigMap(ctx context.Context) {
+	watcher, err := epc.configMapInterface.Watch(ctx, metav1.ListOptions{})
+	if err != nil {
+		logrus.Fatalf("Error watching config map: %v", err)
+	}
+
+	logEntry := log.Entry(ctx).WithFields(logrus.Fields{
+		"configmap-namespace": epc.nsmConfigMapNamespace,
+		"configmap-name":      epc.nsmConfigMapName,
+	})
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-watcher.ResultChan():
+			if !ok {
+				return
+			}
+
+			configMap, ok := event.Object.(*apiV1.ConfigMap)
+			if !ok || configMap.Name != epc.nsmConfigMapName {
+				continue
+			}
+
+			switch event.Type {
+			case watch.Error:
+				logEntry.Errorf("Error during nsm configmap watch: %v", err)
+				return
+			case watch.Modified:
+				prefixes, err := utils.YamlToPrefixes([]byte(configMap.Data[configMapKey]))
+				if err != nil || !utils.UnorderedSlicesEquals(prefixes, epc.previousPrefixes.Load()) {
+					logEntry.Warn("Nsm configmap excluded prefixes field external change, restoring last state")
+					epc.updateConfigMap(ctx, epc.previousPrefixes.Load(), configMap)
+				}
+			}
+		}
+	}
+}
+
+func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap(ctx context.Context) {
 	excludePrefixPool, _ := prefixpool.New()
 
 	for _, v := range epc.sources {
@@ -99,21 +150,35 @@ func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap() {
 	}
 
 	newPrefixes := excludePrefixPool.GetPrefixes()
-	if utils.UnorderedSlicesEquals(newPrefixes, epc.previousPrefixes) {
+	if utils.UnorderedSlicesEquals(newPrefixes, epc.previousPrefixes.Load()) {
 		return
 	}
-	epc.previousPrefixes = newPrefixes
 
+	configMap, err := epc.configMapInterface.Get(ctx, epc.nsmConfigMapName, metav1.GetOptions{})
+	if err != nil {
+		logrus.Fatalf("Failed to get NSM ConfigMap '%s/%s': %v", epc.nsmConfigMapNamespace, epc.nsmConfigMapName, err)
+		return
+	}
+
+	epc.previousPrefixes.Store(newPrefixes)
+	epc.updateConfigMap(ctx, newPrefixes, configMap)
+}
+
+func (epc *ExcludePrefixCollector) updateConfigMap(ctx context.Context, newPrefixes []string, configMap *apiV1.ConfigMap) {
 	data, err := prefixesToYaml(newPrefixes)
 	if err != nil {
 		logrus.Errorf("Can not create marshal prefixes, err: %v", err.Error())
 		return
 	}
 
-	err = ioutil.WriteFile(epc.outputFilePath, data, outputFilePermissions)
+	configMap.Data[configMapKey] = string(data)
+
+	_, err = epc.configMapInterface.Update(ctx, configMap, metav1.UpdateOptions{})
 	if err != nil {
-		logrus.Fatalf("Unable to write into file: %v", err.Error())
+		logrus.Errorf("Failed to update NSM ConfigMap '%s/%s': %v", epc.nsmConfigMapNamespace, epc.nsmConfigMapName, err)
+		return
 	}
+	logrus.Infof("Excluded prefixes were successfully updated: %v", newPrefixes)
 }
 
 // prefixesToYaml converts list of prefixes to yaml file
