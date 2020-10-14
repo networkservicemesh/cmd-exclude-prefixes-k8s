@@ -22,6 +22,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
+
 	apiV1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
 
@@ -98,6 +100,11 @@ func (epc *ExcludePrefixCollector) monitorNSMConfigMap(ctx context.Context) {
 		logrus.Fatalf("Error watching config map: %v", err)
 	}
 
+	logEntry := log.Entry(ctx).WithFields(logrus.Fields{
+		"configmap-namespace": epc.nsmConfigMapNamespace,
+		"configmap-name":      epc.nsmConfigMapName,
+	})
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -112,16 +119,14 @@ func (epc *ExcludePrefixCollector) monitorNSMConfigMap(ctx context.Context) {
 				continue
 			}
 
-			if event.Type == watch.Error {
-				logrus.Errorf("Error during nsm configmap %v/%v watch: %v", epc.nsmConfigMapNamespace, epc.nsmConfigMapName, err)
+			switch event.Type {
+			case watch.Error:
+				logEntry.Errorf("Error during nsm configmap watch: %v", err)
 				return
-			}
-
-			if event.Type == watch.Modified {
+			case watch.Modified:
 				prefixes, err := utils.YamlToPrefixes([]byte(configMap.Data[configMapKey]))
 				if err != nil || !utils.UnorderedSlicesEquals(prefixes, epc.previousPrefixes.Load()) {
-					logrus.Warnf("Nsm configmap %v/%v excluded prefixes field external change, restoring last state",
-						epc.nsmConfigMapNamespace, epc.nsmConfigMapName)
+					logEntry.Warn("Nsm configmap excluded prefixes field external change, restoring last state")
 					epc.updateConfigMap(ctx, epc.previousPrefixes.Load(), configMap)
 				}
 			}

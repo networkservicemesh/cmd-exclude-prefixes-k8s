@@ -19,7 +19,9 @@ package main
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"context"
+	"io/ioutil"
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/k8s"
@@ -34,16 +36,16 @@ import (
 )
 
 const (
-	envPrefix = "exclude_prefixes_k8s"
+	envPrefix            = "exclude_prefixes_k8s"
+	currentNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 )
 
 // Config - configuration for cmd-exclude-prefixes-k8s
 type Config struct {
-	ExcludedPrefixes      []string `desc:"List of excluded prefixes" split_words:"true"`
-	ConfigMapNamespace    string   `default:"default" desc:"Namespace of user config map" split_words:"true"`
-	ConfigMapName         string   `default:"excluded-prefixes-config" desc:"Name of user config map" split_words:"true"`
-	NSMConfigMapNamespace string   `default:"default" desc:"Namespace of nsm config map" split_words:"true"`
-	NSMConfigMapName      string   `default:"nsm-config" desc:"Name of nsm config map" split_words:"true"`
+	ExcludedPrefixes   []string `desc:"List of excluded prefixes" split_words:"true"`
+	ConfigMapNamespace string   `default:"default" desc:"Namespace of user config map" split_words:"true"`
+	ConfigMapName      string   `default:"excluded-prefixes-config" desc:"Name of user config map" split_words:"true"`
+	NSMConfigMapName   string   `default:"nsm-config" desc:"Name of nsm config map" split_words:"true"`
 }
 
 func main() {
@@ -86,15 +88,24 @@ func main() {
 	ctx = prefixcollector.WithKubernetesInterface(ctx, kubernetes.Interface(clientSet))
 	cond := sync.NewCond(&sync.Mutex{})
 
+	currentNamespace, err := ioutil.ReadFile(currentNamespacePath)
+	if err != nil {
+		span.Logger().Fatalf("Error reading namespace from secret: %v", err)
+	}
+
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
 		cond,
 		config.NSMConfigMapName,
-		config.NSMConfigMapNamespace,
+		strings.TrimSpace(string(currentNamespace)),
 		prefixcollector.NewEnvPrefixSource(envPrefixes),
 		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
 		prefixcollector.NewKubernetesPrefixSource(ctx, cond),
 		prefixcollector.NewConfigMapPrefixSource(ctx, cond, config.ConfigMapName, config.ConfigMapNamespace),
 	)
+
+	if err != nil {
+		span.Logger().Fatalf("Error creating collector: %v", err)
+	}
 
 	go excludePrefixService.Serve(ctx)
 
