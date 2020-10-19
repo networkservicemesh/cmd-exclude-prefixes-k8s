@@ -21,7 +21,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/sirupsen/logrus"
+	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
+
 	apiV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -44,6 +45,7 @@ type KubeAdmPrefixSource struct {
 	prefixes           *utils.SynchronizedPrefixesContainer
 	ctx                context.Context
 	notify             Notifier
+	span               spanhelper.SpanHelper
 }
 
 // Prefixes returns prefixes from source
@@ -67,10 +69,14 @@ func NewKubeAdmPrefixSource(ctx context.Context, notify Notifier) *KubeAdmPrefix
 }
 
 func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
+	kaps.span = spanhelper.FromContext(kaps.ctx, "Watch kubeadm configMap")
+	defer kaps.span.Finish()
+	logger := kaps.span.Logger()
+
 	kaps.checkCurrentConfigMap()
 	configMapWatch, err := kaps.configMapInterface.Watch(kaps.ctx, metav1.ListOptions{})
 	if err != nil {
-		logrus.Errorf("Error creating config map watch: %v", err)
+		logger.Errorf("Error creating config map watch: %v", err)
 		return
 	}
 
@@ -99,7 +105,7 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 			}
 
 			if err = kaps.setPrefixesFromConfigMap(configMap); err != nil {
-				logrus.Error(err)
+				logger.Error(err)
 			}
 		}
 	}
@@ -107,17 +113,21 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 
 func (kaps *KubeAdmPrefixSource) checkCurrentConfigMap() {
 	configMap, err := kaps.configMapInterface.Get(kaps.ctx, kubeName, metav1.GetOptions{})
+	logger := kaps.span.Logger()
+
 	if err != nil {
-		logrus.Errorf("Error getting KubeAdm config map : %v", err)
+		logger.Errorf("Error getting KubeAdm config map : %v", err)
 		return
 	}
 
 	if err = kaps.setPrefixesFromConfigMap(configMap); err != nil {
-		logrus.Error(err)
+		logger.Error(err)
 	}
 }
 
 func (kaps *KubeAdmPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.ConfigMap) error {
+	logger := kaps.span.Logger()
+
 	clusterConfiguration := &v1beta2.ClusterConfiguration{}
 	err := yaml.NewYAMLOrJSONDecoder(
 		strings.NewReader(configMap.Data["ClusterConfiguration"]), bufferSize,
@@ -131,17 +141,17 @@ func (kaps *KubeAdmPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Confi
 	serviceSubnet := clusterConfiguration.Networking.ServiceSubnet
 
 	if podSubnet == "" {
-		logrus.Error("ClusterConfiguration.Networking.PodSubnet is empty")
+		logger.Error("ClusterConfiguration.Networking.PodSubnet is empty")
 	}
 	if serviceSubnet == "" {
-		logrus.Error("ClusterConfiguration.Networking.ServiceSubnet is empty")
+		logger.Error("ClusterConfiguration.Networking.ServiceSubnet is empty")
 	}
 
 	prefixes := []string{podSubnet, serviceSubnet}
 
 	kaps.prefixes.Store(prefixes)
 	kaps.notify.Broadcast()
-	logrus.Infof("Prefixes sent from kubeadm source: %v", prefixes)
+	logger.Infof("Prefixes sent from kubeadm source: %v", prefixes)
 
 	return nil
 }

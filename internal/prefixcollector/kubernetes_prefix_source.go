@@ -21,8 +21,9 @@ import (
 	"context"
 	"net"
 
-	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
 )
 
 // KubernetesPrefixSource is excluded prefix source, which get prefixes
@@ -54,15 +55,18 @@ func NewKubernetesPrefixSource(ctx context.Context, notify Notifier) *Kubernetes
 }
 
 func (kps *KubernetesPrefixSource) watchSubnets(notify Notifier, clientSet kubernetes.Interface) {
+	span := spanhelper.FromContext(kps.ctx, "Watch k8s subnets")
+	defer span.Finish()
+
 	podChan, err := watchPodCIDR(kps.ctx, clientSet)
 	if err != nil {
-		logrus.Error(err)
+		span.Logger().Error(err)
 		return
 	}
 
 	serviceChan, err := watchServiceIPAddr(kps.ctx, clientSet)
 	if err != nil {
-		logrus.Error(err)
+		span.Logger().Error(err)
 		return
 	}
 

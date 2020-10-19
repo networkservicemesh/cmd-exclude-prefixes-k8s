@@ -22,7 +22,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/networkservicemesh/sdk/pkg/tools/log"
+	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
 
 	apiV1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -95,12 +95,15 @@ func (epc *ExcludePrefixCollector) Serve(ctx context.Context) {
 }
 
 func (epc *ExcludePrefixCollector) monitorNSMConfigMap(ctx context.Context) {
+	span := spanhelper.FromContext(ctx, "Watch NSM config map")
+	defer span.Finish()
+
 	watcher, err := epc.configMapInterface.Watch(ctx, metav1.ListOptions{})
 	if err != nil {
-		logrus.Fatalf("Error watching config map: %v", err)
+		span.Logger().Fatalf("Error watching config map: %v", err)
 	}
 
-	logEntry := log.Entry(ctx).WithFields(logrus.Fields{
+	logEntry := span.Logger().WithFields(logrus.Fields{
 		"configmap-namespace": epc.nsmConfigMapNamespace,
 		"configmap-name":      epc.nsmConfigMapName,
 	})
@@ -127,7 +130,7 @@ func (epc *ExcludePrefixCollector) monitorNSMConfigMap(ctx context.Context) {
 				prefixes, err := utils.YamlToPrefixes([]byte(configMap.Data[configMapKey]))
 				if err != nil || !utils.UnorderedSlicesEquals(prefixes, epc.previousPrefixes.Load()) {
 					logEntry.Warn("Nsm configmap excluded prefixes field external change, restoring last state")
-					epc.updateConfigMap(ctx, epc.previousPrefixes.Load(), configMap)
+					epc.updateConfigMap(ctx, epc.previousPrefixes.Load(), configMap, span)
 				}
 			}
 		}
@@ -154,31 +157,34 @@ func (epc *ExcludePrefixCollector) updateExcludedPrefixesConfigmap(ctx context.C
 		return
 	}
 
+	span := spanhelper.FromContext(ctx, "Update excluded prefixes config map")
+	defer span.Finish()
+
 	configMap, err := epc.configMapInterface.Get(ctx, epc.nsmConfigMapName, metav1.GetOptions{})
 	if err != nil {
-		logrus.Fatalf("Failed to get NSM ConfigMap '%s/%s': %v", epc.nsmConfigMapNamespace, epc.nsmConfigMapName, err)
+		span.Logger().Fatalf("Failed to get NSM ConfigMap '%s/%s': %v", epc.nsmConfigMapNamespace, epc.nsmConfigMapName, err)
 		return
 	}
 
 	epc.previousPrefixes.Store(newPrefixes)
-	epc.updateConfigMap(ctx, newPrefixes, configMap)
+	epc.updateConfigMap(ctx, newPrefixes, configMap, span)
 }
 
-func (epc *ExcludePrefixCollector) updateConfigMap(ctx context.Context, newPrefixes []string, configMap *apiV1.ConfigMap) {
+func (epc *ExcludePrefixCollector) updateConfigMap(ctx context.Context, newPrefixes []string,
+	configMap *apiV1.ConfigMap, span spanhelper.SpanHelper) {
 	data, err := prefixesToYaml(newPrefixes)
 	if err != nil {
-		logrus.Errorf("Can not create marshal prefixes, err: %v", err.Error())
+		span.Logger().Errorf("Can not create marshal prefixes, err: %v", err.Error())
 		return
 	}
-
 	configMap.Data[configMapKey] = string(data)
 
 	_, err = epc.configMapInterface.Update(ctx, configMap, metav1.UpdateOptions{})
 	if err != nil {
-		logrus.Errorf("Failed to update NSM ConfigMap '%s/%s': %v", epc.nsmConfigMapNamespace, epc.nsmConfigMapName, err)
+		span.Logger().Errorf("Failed to update NSM ConfigMap '%s/%s': %v", epc.nsmConfigMapNamespace, epc.nsmConfigMapName, err)
 		return
 	}
-	logrus.Infof("Excluded prefixes were successfully updated: %v", newPrefixes)
+	span.Logger().Infof("Excluded prefixes were successfully updated: %v", newPrefixes)
 }
 
 // prefixesToYaml converts list of prefixes to yaml file

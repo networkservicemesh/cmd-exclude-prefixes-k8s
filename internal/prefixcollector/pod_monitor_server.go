@@ -135,9 +135,8 @@ func newServiceWatcher(ctx context.Context, cs kubernetes.Interface) (watch.Inte
 	for _, n := range ns {
 		w, err := cs.CoreV1().Services(n).Watch(ctx, metav1.ListOptions{})
 		if err != nil {
-			logrus.Errorf("Unable to watch services in %v namespace: %v", n, err)
 			close(stopCh)
-			return nil, err
+			return nil, errors.Wrapf(err, "Unable to watch services in %v namespace", n)
 		}
 
 		go func() {
