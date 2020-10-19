@@ -20,6 +20,8 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 
+	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	apiV1 "k8s.io/api/core/v1"
@@ -38,6 +40,7 @@ type ConfigMapPrefixSource struct {
 	prefixes           *utils.SynchronizedPrefixesContainer
 	ctx                context.Context
 	notify             Notifier
+	span               spanhelper.SpanHelper
 }
 
 // NewConfigMapPrefixSource creates ConfigMapPrefixSource
@@ -63,10 +66,14 @@ func (cmps *ConfigMapPrefixSource) Prefixes() []string {
 }
 
 func (cmps *ConfigMapPrefixSource) watchConfigMap() {
+	cmps.span = spanhelper.FromContext(cmps.ctx, "Watch kubeadm configMap")
+	defer cmps.span.Finish()
+	logger := cmps.span.Logger()
+
 	cmps.checkCurrentConfigMap()
 	configMapWatch, err := cmps.configMapInterface.Watch(cmps.ctx, metav1.ListOptions{})
 	if err != nil {
-		logrus.Errorf("Error creating config map watch: %v", err)
+		logger.Errorf("Error creating config map watch: %v", err)
 		return
 	}
 
@@ -95,16 +102,18 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 			}
 
 			if err = cmps.setPrefixesFromConfigMap(configMap); err != nil {
-				logrus.Error(err)
+				logger.Error(err)
 			}
 		}
 	}
 }
 
 func (cmps *ConfigMapPrefixSource) checkCurrentConfigMap() {
+	logger := cmps.span.Logger()
+
 	configMap, err := cmps.configMapInterface.Get(cmps.ctx, cmps.configMapName, metav1.GetOptions{})
 	if err != nil {
-		logrus.Errorf("Error getting config map : %v", err)
+		logger.Errorf("Error getting config map : %v", err)
 		return
 	}
 
@@ -114,6 +123,8 @@ func (cmps *ConfigMapPrefixSource) checkCurrentConfigMap() {
 }
 
 func (cmps *ConfigMapPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.ConfigMap) error {
+	logger := cmps.span.Logger()
+
 	prefixesField, ok := configMap.Data[configMapPrefixesKey]
 	if !ok {
 		return nil
@@ -125,7 +136,7 @@ func (cmps *ConfigMapPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Con
 	}
 	cmps.prefixes.Store(prefixes)
 	cmps.notify.Broadcast()
-	logrus.Infof("Prefixes sent from config map source: %v", prefixes)
+	logger.Infof("Prefixes sent from config map source: %v", prefixes)
 
 	return nil
 }

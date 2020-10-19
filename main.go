@@ -27,7 +27,6 @@ import (
 	"github.com/networkservicemesh/sdk-k8s/pkg/k8s"
 
 	"github.com/kelseyhightower/envconfig"
-	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/jaeger"
@@ -61,10 +60,10 @@ func main() {
 	// Get clientSetConfig from environment
 	config := &Config{}
 	if err := envconfig.Usage(envPrefix, config); err != nil {
-		logrus.Fatal(err)
+		span.Logger().Fatal(err)
 	}
 	if err := envconfig.Process(envPrefix, config); err != nil {
-		logrus.Fatalf("Error processing clientSetConfig from env: %v", err)
+		span.Logger().Fatalf("Error processing clientSetConfig from env: %v", err)
 	}
 
 	envPrefixes, err := validatedPrefixes(config.ExcludedPrefixes)
@@ -72,7 +71,7 @@ func main() {
 		span.Logger().Fatalf("Failed to parse prefixes from environment: %v", err)
 	}
 
-	span.Logger().Printf("Building Kubernetes clientSet...")
+	span.Logger().Info("Building Kubernetes clientSet...")
 	clientSetConfig, err := k8s.NewClientSetConfig()
 	if err != nil {
 		span.Logger().Fatalf("Failed to build Kubernetes clientSet: %v", err)
