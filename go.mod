@@ -1,6 +1,6 @@
 module cmd-exclude-prefixes-k8s
 
-go 1.14
+go 1.15
 
 require (
 	github.com/ghodss/yaml v1.0.0
