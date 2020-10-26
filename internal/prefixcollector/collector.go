@@ -14,13 +14,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package prefixcollector contains excluded prefix collector, prefix sources and functions working with them
+// Package prefixcollector contains excluded prefix collector and functions working with it
 package prefixcollector
 
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"sync"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
 
@@ -46,15 +45,10 @@ type ExcludePrefixSource interface {
 	Prefixes() []string
 }
 
-// Notifier is entity used for listeners notification
-type Notifier interface {
-	Broadcast()
-}
-
 // ExcludePrefixCollector is service, collecting excluded prefixes from list of ExcludePrefixSource
 // and writing result to outputFilePath in yaml format
 type ExcludePrefixCollector struct {
-	notify                *sync.Cond
+	notifiable            utils.Notifiable
 	nsmConfigMapName      string
 	nsmConfigMapNamespace string
 	sources               []ExcludePrefixSource
@@ -63,12 +57,12 @@ type ExcludePrefixCollector struct {
 }
 
 // NewExcludePrefixCollector creates ExcludePrefixCollector
-func NewExcludePrefixCollector(notify *sync.Cond, configMapName, configMapNamespace string,
+func NewExcludePrefixCollector(notifiable utils.Notifiable, configMapName, configMapNamespace string,
 	sources ...ExcludePrefixSource) *ExcludePrefixCollector {
 	return &ExcludePrefixCollector{
 		nsmConfigMapName:      configMapName,
 		nsmConfigMapNamespace: configMapNamespace,
-		notify:                notify,
+		notifiable:            notifiable,
 		sources:               sources,
 		previousPrefixes:      utils.NewSynchronizedPrefixesContainer(),
 	}
@@ -78,18 +72,15 @@ func NewExcludePrefixCollector(notify *sync.Cond, configMapName, configMapNamesp
 // Updates exclude prefix file after every notification.
 func (epc *ExcludePrefixCollector) Serve(ctx context.Context) {
 	epc.configMapInterface = KubernetesInterface(ctx).CoreV1().ConfigMaps(epc.nsmConfigMapNamespace)
-	go func() {
-		epc.monitorNSMConfigMap(ctx)
-		epc.notify.Broadcast()
-	}()
+	go func() { epc.monitorNSMConfigMap(ctx) }()
 
 	// check current state of sources
 	epc.updateExcludedPrefixesConfigmap(ctx)
-
 	for ctx.Err() == nil {
-		epc.notify.L.Lock()
-		epc.notify.Wait()
-		epc.notify.L.Unlock()
+		if err := epc.notifiable.Wait(ctx); err != nil {
+			logrus.Error(err)
+			return
+		}
 		epc.updateExcludedPrefixesConfigmap(ctx)
 	}
 }

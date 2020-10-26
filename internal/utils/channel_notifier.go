@@ -14,21 +14,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package prefixcollector
+package utils
 
-// EnvPrefixSource is environment excluded prefixes source
-type EnvPrefixSource struct {
-	prefixes []string
+import "context"
+
+// Notifiable is entity used for listener notification
+type Notifiable interface {
+	Notify()
+	Wait(ctx context.Context) error
 }
 
-// Prefixes returns prefixes from source
-func (e *EnvPrefixSource) Prefixes() []string {
-	return e.prefixes
+type channelNotifier struct {
+	ch chan struct{}
 }
 
-// NewEnvPrefixSource creates EnvPrefixSource
-func NewEnvPrefixSource(prefixes []string) *EnvPrefixSource {
-	return &EnvPrefixSource{
-		prefixes: prefixes,
+// NewChannelNotifiable - creates new channelNotifier
+func NewChannelNotifiable() Notifiable {
+	return &channelNotifier{
+		ch: make(chan struct{}, 1),
 	}
+}
+
+// Notify - notifies listener about event
+func (cn *channelNotifier) Notify() {
+	cn.ch <- struct{}{}
+}
+
+// Wait - waits for notification or context cancel
+func (cn *channelNotifier) Wait(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-cn.ch:
+	}
+	return nil
 }

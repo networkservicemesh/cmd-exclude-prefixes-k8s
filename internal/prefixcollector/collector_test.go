@@ -18,12 +18,12 @@ package prefixcollector_test
 
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
+	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixsource"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"errors"
 	"io/ioutil"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/ghodss/yaml"
@@ -70,7 +70,7 @@ func (eps *ExcludedPrefixesSuite) SetupSuite() {
 
 func (eps *ExcludedPrefixesSuite) TestCollectorWithDummySources() {
 	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
-	cond := sync.NewCond(&sync.Mutex{})
+	notifier := utils.NewChannelNotifiable()
 	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
 	defer cancel()
 
@@ -97,7 +97,7 @@ func (eps *ExcludedPrefixesSuite) TestCollectorWithDummySources() {
 		"134.0.0.0/8",
 	}
 
-	eps.testCollector(ctx, cond, expectedResult, sources)
+	eps.testCollector(ctx, notifier, expectedResult, sources)
 }
 
 func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
@@ -106,16 +106,16 @@ func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
 		"168.0.0.0/10",
 		"1.0.0.0/11",
 	}
-	cond := sync.NewCond(&sync.Mutex{})
+	notifier := utils.NewChannelNotifiable()
 
 	configMap, ctx := eps.createConfigMap(configMapNamespace, configMapPath)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	sources := []prefixcollector.ExcludePrefixSource{
-		prefixcollector.NewConfigMapPrefixSource(
+		prefixsource.NewConfigMapPrefixSource(
 			ctx,
-			cond,
+			notifier,
 			userConfigMapName,
 			configMapNamespace,
 		),
@@ -126,7 +126,7 @@ func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
 		eps.T().Fatalf("Error updating config map %v/%v: %v", configMap.Namespace, configMap.Name, err)
 	}
 
-	eps.testCollector(ctx, cond, expectedResult, sources)
+	eps.testCollector(ctx, notifier, expectedResult, sources)
 }
 
 func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
@@ -136,13 +136,13 @@ func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
 		"10.96.0.0/12",
 	}
 
-	cond := sync.NewCond(&sync.Mutex{})
-	configMap, ctx := eps.createConfigMap(prefixcollector.KubeNamespace, kubeConfigMapPath)
+	notifier := utils.NewChannelNotifiable()
+	configMap, ctx := eps.createConfigMap(prefixsource.KubeNamespace, kubeConfigMapPath)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	sources := []prefixcollector.ExcludePrefixSource{
-		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
+		prefixsource.NewKubeAdmPrefixSource(ctx, notifier),
 	}
 
 	_, err := eps.clientSet.CoreV1().ConfigMaps(configMap.Namespace).Update(ctx, configMap, metav1.UpdateOptions{})
@@ -150,7 +150,7 @@ func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
 		eps.T().Fatalf("Error updating config map %v/%v: %v", configMap.Namespace, configMap.Name, err)
 	}
 
-	eps.testCollector(ctx, cond, expectedResult, sources)
+	eps.testCollector(ctx, notifier, expectedResult, sources)
 }
 
 func TestExcludedPrefixesSuite(t *testing.T) {
@@ -173,10 +173,10 @@ func (eps *ExcludedPrefixesSuite) createConfigMap(namespace, configPath string) 
 	return configMap, ctx
 }
 
-func (eps *ExcludedPrefixesSuite) testCollector(ctx context.Context, cond *sync.Cond,
+func (eps *ExcludedPrefixesSuite) testCollector(ctx context.Context, notifier utils.Notifiable,
 	expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
 	collector := prefixcollector.NewExcludePrefixCollector(
-		cond,
+		notifier,
 		nsmConfigMapName,
 		configMapNamespace,
 		sources...,

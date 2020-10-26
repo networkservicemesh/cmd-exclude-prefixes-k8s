@@ -14,9 +14,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package prefixcollector
+// Package prefixsource contains excluded prefix sources
+package prefixsource
 
 import (
+	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 
@@ -39,13 +41,13 @@ type ConfigMapPrefixSource struct {
 	configMapInterface v1.ConfigMapInterface
 	prefixes           *utils.SynchronizedPrefixesContainer
 	ctx                context.Context
-	notify             Notifier
+	notify             utils.Notifiable
 	span               spanhelper.SpanHelper
 }
 
 // NewConfigMapPrefixSource creates ConfigMapPrefixSource
-func NewConfigMapPrefixSource(ctx context.Context, notify Notifier, name, namespace string) *ConfigMapPrefixSource {
-	clientSet := KubernetesInterface(ctx)
+func NewConfigMapPrefixSource(ctx context.Context, notify utils.Notifiable, name, namespace string) *ConfigMapPrefixSource {
+	clientSet := prefixcollector.KubernetesInterface(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(namespace)
 	cmps := ConfigMapPrefixSource{
 		configMapName:      name,
@@ -97,7 +99,7 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 
 			if event.Type == watch.Deleted {
 				cmps.prefixes.Store([]string(nil))
-				cmps.notify.Broadcast()
+				cmps.notify.Notify()
 				continue
 			}
 
@@ -135,7 +137,7 @@ func (cmps *ConfigMapPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Con
 		return errors.Errorf("Can not unmarshal prefixes, err: %v", err.Error())
 	}
 	cmps.prefixes.Store(prefixes)
-	cmps.notify.Broadcast()
+	cmps.notify.Notify()
 	logger.Infof("Prefixes sent from config map source: %v", prefixes)
 
 	return nil

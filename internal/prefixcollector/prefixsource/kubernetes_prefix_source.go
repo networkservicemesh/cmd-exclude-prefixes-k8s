@@ -14,9 +14,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package prefixcollector
+package prefixsource
 
 import (
+	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"net"
@@ -30,6 +31,7 @@ import (
 // from Kubernetes pods and services addresses
 type KubernetesPrefixSource struct {
 	prefixes *utils.SynchronizedPrefixesContainer
+	notify   utils.Notifiable
 	ctx      context.Context
 }
 
@@ -39,22 +41,23 @@ func (kps *KubernetesPrefixSource) Prefixes() []string {
 }
 
 // NewKubernetesPrefixSource creates KubernetesPrefixSource
-func NewKubernetesPrefixSource(ctx context.Context, notify Notifier) *KubernetesPrefixSource {
+func NewKubernetesPrefixSource(ctx context.Context, notify utils.Notifiable) *KubernetesPrefixSource {
 	kps := &KubernetesPrefixSource{
 		ctx:      ctx,
+		notify:   notify,
 		prefixes: utils.NewSynchronizedPrefixesContainer(),
 	}
 
 	go func() {
-		clientSet := KubernetesInterface(kps.ctx)
+		clientSet := prefixcollector.KubernetesInterface(kps.ctx)
 		for kps.ctx.Err() == nil {
-			kps.watchSubnets(notify, clientSet)
+			kps.watchSubnets(clientSet)
 		}
 	}()
 	return kps
 }
 
-func (kps *KubernetesPrefixSource) watchSubnets(notify Notifier, clientSet kubernetes.Interface) {
+func (kps *KubernetesPrefixSource) watchSubnets(clientSet kubernetes.Interface) {
 	span := spanhelper.FromContext(kps.ctx, "Watch k8s subnets")
 	defer span.Finish()
 
@@ -70,10 +73,10 @@ func (kps *KubernetesPrefixSource) watchSubnets(notify Notifier, clientSet kuber
 		return
 	}
 
-	kps.waitForSubnets(notify, podChan, serviceChan)
+	kps.waitForSubnets(podChan, serviceChan)
 }
 
-func (kps *KubernetesPrefixSource) waitForSubnets(notify Notifier, podChan, serviceChan <-chan *net.IPNet) {
+func (kps *KubernetesPrefixSource) waitForSubnets(podChan, serviceChan <-chan *net.IPNet) {
 	var podSubnet, serviceSubnet string
 	for {
 		select {
@@ -93,7 +96,7 @@ func (kps *KubernetesPrefixSource) waitForSubnets(notify Notifier, podChan, serv
 
 		prefixes := getPrefixes(podSubnet, serviceSubnet)
 		kps.prefixes.Store(prefixes)
-		notify.Broadcast()
+		kps.notify.Notify()
 	}
 }
 
