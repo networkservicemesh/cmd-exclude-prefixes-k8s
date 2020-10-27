@@ -70,7 +70,7 @@ func (eps *ExcludedPrefixesSuite) SetupSuite() {
 
 func (eps *ExcludedPrefixesSuite) TestCollectorWithDummySources() {
 	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
-	notifier := utils.NewChannelNotifiable()
+	notifyChan := make(chan struct{}, 1)
 	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
 	defer cancel()
 
@@ -97,7 +97,7 @@ func (eps *ExcludedPrefixesSuite) TestCollectorWithDummySources() {
 		"134.0.0.0/8",
 	}
 
-	eps.testCollector(ctx, notifier, expectedResult, sources)
+	eps.testCollector(ctx, notifyChan, expectedResult, sources)
 }
 
 func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
@@ -106,7 +106,7 @@ func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
 		"168.0.0.0/10",
 		"1.0.0.0/11",
 	}
-	notifier := utils.NewChannelNotifiable()
+	notifyChan := make(chan struct{}, 1)
 
 	configMap, ctx := eps.createConfigMap(configMapNamespace, configMapPath)
 	ctx, cancel := context.WithCancel(ctx)
@@ -115,7 +115,7 @@ func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
 	sources := []prefixcollector.ExcludePrefixSource{
 		prefixsource.NewConfigMapPrefixSource(
 			ctx,
-			notifier,
+			notifyChan,
 			userConfigMapName,
 			configMapNamespace,
 		),
@@ -126,7 +126,7 @@ func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
 		eps.T().Fatalf("Error updating config map %v/%v: %v", configMap.Namespace, configMap.Name, err)
 	}
 
-	eps.testCollector(ctx, notifier, expectedResult, sources)
+	eps.testCollector(ctx, notifyChan, expectedResult, sources)
 }
 
 func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
@@ -136,13 +136,13 @@ func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
 		"10.96.0.0/12",
 	}
 
-	notifier := utils.NewChannelNotifiable()
+	notifyChan := make(chan struct{}, 1)
 	configMap, ctx := eps.createConfigMap(prefixsource.KubeNamespace, kubeConfigMapPath)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	sources := []prefixcollector.ExcludePrefixSource{
-		prefixsource.NewKubeAdmPrefixSource(ctx, notifier),
+		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
 	}
 
 	_, err := eps.clientSet.CoreV1().ConfigMaps(configMap.Namespace).Update(ctx, configMap, metav1.UpdateOptions{})
@@ -150,7 +150,7 @@ func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
 		eps.T().Fatalf("Error updating config map %v/%v: %v", configMap.Namespace, configMap.Name, err)
 	}
 
-	eps.testCollector(ctx, notifier, expectedResult, sources)
+	eps.testCollector(ctx, notifyChan, expectedResult, sources)
 }
 
 func TestExcludedPrefixesSuite(t *testing.T) {
@@ -173,10 +173,10 @@ func (eps *ExcludedPrefixesSuite) createConfigMap(namespace, configPath string) 
 	return configMap, ctx
 }
 
-func (eps *ExcludedPrefixesSuite) testCollector(ctx context.Context, notifier utils.Notifiable,
+func (eps *ExcludedPrefixesSuite) testCollector(ctx context.Context, notifyChan chan struct{},
 	expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
 	collector := prefixcollector.NewExcludePrefixCollector(
-		notifier,
+		notifyChan,
 		nsmConfigMapName,
 		configMapNamespace,
 		sources...,

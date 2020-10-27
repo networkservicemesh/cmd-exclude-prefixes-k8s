@@ -45,7 +45,7 @@ type KubeAdmPrefixSource struct {
 	configMapInterface v1.ConfigMapInterface
 	prefixes           *utils.SynchronizedPrefixesContainer
 	ctx                context.Context
-	notify             utils.Notifiable
+	notify             chan<- struct{}
 	span               spanhelper.SpanHelper
 }
 
@@ -55,7 +55,7 @@ func (kaps *KubeAdmPrefixSource) Prefixes() []string {
 }
 
 // NewKubeAdmPrefixSource creates KubeAdmPrefixSource
-func NewKubeAdmPrefixSource(ctx context.Context, notify utils.Notifiable) *KubeAdmPrefixSource {
+func NewKubeAdmPrefixSource(ctx context.Context, notify chan<- struct{}) *KubeAdmPrefixSource {
 	clientSet := prefixcollector.KubernetesInterface(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(KubeNamespace)
 	kaps := KubeAdmPrefixSource{
@@ -101,7 +101,7 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 
 			if event.Type == watch.Deleted {
 				kaps.prefixes.Store([]string(nil))
-				kaps.notify.Notify()
+				kaps.notify <- struct{}{}
 				continue
 			}
 
@@ -151,7 +151,7 @@ func (kaps *KubeAdmPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Confi
 	prefixes := []string{podSubnet, serviceSubnet}
 
 	kaps.prefixes.Store(prefixes)
-	kaps.notify.Notify()
+	kaps.notify <- struct{}{}
 	logger.Infof("Prefixes sent from kubeadm source: %v", prefixes)
 
 	return nil

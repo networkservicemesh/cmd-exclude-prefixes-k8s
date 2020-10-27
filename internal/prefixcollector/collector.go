@@ -48,7 +48,7 @@ type ExcludePrefixSource interface {
 // ExcludePrefixCollector is service, collecting excluded prefixes from list of ExcludePrefixSource
 // and writing result to outputFilePath in yaml format
 type ExcludePrefixCollector struct {
-	notifiable            utils.Notifiable
+	notifyChan            <-chan struct{}
 	nsmConfigMapName      string
 	nsmConfigMapNamespace string
 	sources               []ExcludePrefixSource
@@ -57,12 +57,12 @@ type ExcludePrefixCollector struct {
 }
 
 // NewExcludePrefixCollector creates ExcludePrefixCollector
-func NewExcludePrefixCollector(notifiable utils.Notifiable, configMapName, configMapNamespace string,
+func NewExcludePrefixCollector(notifyChan <-chan struct{}, configMapName, configMapNamespace string,
 	sources ...ExcludePrefixSource) *ExcludePrefixCollector {
 	return &ExcludePrefixCollector{
 		nsmConfigMapName:      configMapName,
 		nsmConfigMapNamespace: configMapNamespace,
-		notifiable:            notifiable,
+		notifyChan:            notifyChan,
 		sources:               sources,
 		previousPrefixes:      utils.NewSynchronizedPrefixesContainer(),
 	}
@@ -76,12 +76,13 @@ func (epc *ExcludePrefixCollector) Serve(ctx context.Context) {
 
 	// check current state of sources
 	epc.updateExcludedPrefixesConfigmap(ctx)
-	for ctx.Err() == nil {
-		if err := epc.notifiable.Wait(ctx); err != nil {
-			logrus.Error(err)
+	for {
+		select {
+		case <-epc.notifyChan:
+			epc.updateExcludedPrefixesConfigmap(ctx)
+		case <-ctx.Done():
 			return
 		}
-		epc.updateExcludedPrefixesConfigmap(ctx)
 	}
 }
 

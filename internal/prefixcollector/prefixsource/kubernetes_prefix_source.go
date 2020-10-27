@@ -31,7 +31,7 @@ import (
 // from Kubernetes pods and services addresses
 type KubernetesPrefixSource struct {
 	prefixes *utils.SynchronizedPrefixesContainer
-	notify   utils.Notifiable
+	notify   chan<- struct{}
 	ctx      context.Context
 }
 
@@ -41,7 +41,7 @@ func (kps *KubernetesPrefixSource) Prefixes() []string {
 }
 
 // NewKubernetesPrefixSource creates KubernetesPrefixSource
-func NewKubernetesPrefixSource(ctx context.Context, notify utils.Notifiable) *KubernetesPrefixSource {
+func NewKubernetesPrefixSource(ctx context.Context, notify chan<- struct{}) *KubernetesPrefixSource {
 	kps := &KubernetesPrefixSource{
 		ctx:      ctx,
 		notify:   notify,
@@ -96,7 +96,7 @@ func (kps *KubernetesPrefixSource) waitForSubnets(podChan, serviceChan <-chan *n
 
 		prefixes := getPrefixes(podSubnet, serviceSubnet)
 		kps.prefixes.Store(prefixes)
-		kps.notify.Notify()
+		kps.notify <- struct{}{}
 	}
 }
 

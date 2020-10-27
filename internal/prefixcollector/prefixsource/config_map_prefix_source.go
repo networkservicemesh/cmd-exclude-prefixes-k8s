@@ -41,12 +41,12 @@ type ConfigMapPrefixSource struct {
 	configMapInterface v1.ConfigMapInterface
 	prefixes           *utils.SynchronizedPrefixesContainer
 	ctx                context.Context
-	notify             utils.Notifiable
+	notify             chan<- struct{}
 	span               spanhelper.SpanHelper
 }
 
 // NewConfigMapPrefixSource creates ConfigMapPrefixSource
-func NewConfigMapPrefixSource(ctx context.Context, notify utils.Notifiable, name, namespace string) *ConfigMapPrefixSource {
+func NewConfigMapPrefixSource(ctx context.Context, notify chan<- struct{}, name, namespace string) *ConfigMapPrefixSource {
 	clientSet := prefixcollector.KubernetesInterface(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(namespace)
 	cmps := ConfigMapPrefixSource{
@@ -99,7 +99,7 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 
 			if event.Type == watch.Deleted {
 				cmps.prefixes.Store([]string(nil))
-				cmps.notify.Notify()
+				cmps.notify <- struct{}{}
 				continue
 			}
 
@@ -137,7 +137,7 @@ func (cmps *ConfigMapPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Con
 		return errors.Errorf("Can not unmarshal prefixes, err: %v", err.Error())
 	}
 	cmps.prefixes.Store(prefixes)
-	cmps.notify.Notify()
+	cmps.notify <- struct{}{}
 	logger.Infof("Prefixes sent from config map source: %v", prefixes)
 
 	return nil

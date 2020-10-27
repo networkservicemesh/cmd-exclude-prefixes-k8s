@@ -19,7 +19,6 @@ package main
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixsource"
-	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"io/ioutil"
 	"net"
@@ -86,7 +85,7 @@ func main() {
 	}
 
 	ctx = prefixcollector.WithKubernetesInterface(ctx, kubernetes.Interface(clientSet))
-	notifiable := utils.NewChannelNotifiable()
+	notifyChan := make(chan struct{}, 1)
 
 	currentNamespace, err := ioutil.ReadFile(currentNamespacePath)
 	if err != nil {
@@ -94,13 +93,13 @@ func main() {
 	}
 
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
-		notifiable,
+		notifyChan,
 		config.NSMConfigMapName,
 		strings.TrimSpace(string(currentNamespace)),
 		prefixsource.NewEnvPrefixSource(envPrefixes),
-		prefixsource.NewKubeAdmPrefixSource(ctx, notifiable),
-		prefixsource.NewKubernetesPrefixSource(ctx, notifiable),
-		prefixsource.NewConfigMapPrefixSource(ctx, notifiable, config.ConfigMapName, config.ConfigMapNamespace),
+		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
+		prefixsource.NewKubernetesPrefixSource(ctx, notifyChan),
+		prefixsource.NewConfigMapPrefixSource(ctx, notifyChan, config.ConfigMapName, config.ConfigMapNamespace),
 	)
 
 	go excludePrefixService.Serve(ctx)
