@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/suite"
@@ -65,7 +66,7 @@ type ExcludedPrefixesSuite struct {
 
 func (eps *ExcludedPrefixesSuite) SetupSuite() {
 	eps.clientSet = fake.NewSimpleClientset()
-	eps.createConfigMap(configMapNamespace, nsmConfigMapPath)
+	eps.createConfigMap(context.Background(), configMapNamespace, nsmConfigMapPath)
 }
 
 func (eps *ExcludedPrefixesSuite) TestCollectorWithDummySources() {
@@ -108,9 +109,8 @@ func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
 	}
 	notifyChan := make(chan struct{}, 1)
 
-	configMap, ctx := eps.createConfigMap(configMapNamespace, configMapPath)
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
+	eps.createConfigMap(ctx, configMapNamespace, configMapPath)
 
 	sources := []prefixcollector.ExcludePrefixSource{
 		prefixsource.NewConfigMapPrefixSource(
@@ -121,12 +121,10 @@ func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
 		),
 	}
 
-	_, err := eps.clientSet.CoreV1().ConfigMaps(configMap.Namespace).Update(ctx, configMap, metav1.UpdateOptions{})
-	if err != nil {
-		eps.T().Fatalf("Error updating config map %v/%v: %v", configMap.Namespace, configMap.Name, err)
-	}
-
 	eps.testCollector(ctx, notifyChan, expectedResult, sources)
+	cancel()
+
+	eps.deleteConfigMap(ctx, configMapNamespace, userConfigMapName)
 }
 
 func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
@@ -137,40 +135,85 @@ func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
 	}
 
 	notifyChan := make(chan struct{}, 1)
-	configMap, ctx := eps.createConfigMap(prefixsource.KubeNamespace, kubeConfigMapPath)
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
+
+	eps.createConfigMap(ctx, prefixsource.KubeNamespace, kubeConfigMapPath)
 
 	sources := []prefixcollector.ExcludePrefixSource{
 		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
 	}
 
-	_, err := eps.clientSet.CoreV1().ConfigMaps(configMap.Namespace).Update(ctx, configMap, metav1.UpdateOptions{})
-	if err != nil {
-		eps.T().Fatalf("Error updating config map %v/%v: %v", configMap.Namespace, configMap.Name, err)
+	eps.testCollector(ctx, notifyChan, expectedResult, sources)
+	cancel()
+
+	eps.deleteConfigMap(ctx, prefixsource.KubeNamespace, prefixsource.KubeName)
+}
+
+func (eps *ExcludedPrefixesSuite) TestAllSources() {
+	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
+	expectedResult := []string{
+		"10.244.0.0/16",
+		"10.96.0.0/12",
+		"127.0.0.0/16",
+		"168.92.0.0/24",
+		"168.0.0.0/10",
+		"1.0.0.0/11",
+	}
+
+	notifyChan := make(chan struct{}, 1)
+	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
+
+	eps.createConfigMap(ctx, prefixsource.KubeNamespace, kubeConfigMapPath)
+	eps.createConfigMap(ctx, configMapNamespace, configMapPath)
+
+	sources := []prefixcollector.ExcludePrefixSource{
+		newDummyPrefixSource(
+			[]string{
+				"127.0.0.1/16",
+				"127.0.2.1/16",
+				"168.92.0.1/24",
+			},
+		),
+		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
+		prefixsource.NewConfigMapPrefixSource(
+			ctx,
+			notifyChan,
+			userConfigMapName,
+			configMapNamespace,
+		),
 	}
 
 	eps.testCollector(ctx, notifyChan, expectedResult, sources)
+	cancel()
+
+	eps.deleteConfigMap(ctx, prefixsource.KubeNamespace, prefixsource.KubeName)
+	eps.deleteConfigMap(ctx, configMapNamespace, userConfigMapName)
 }
 
 func TestExcludedPrefixesSuite(t *testing.T) {
 	suite.Run(t, &ExcludedPrefixesSuite{})
 }
 
-func (eps *ExcludedPrefixesSuite) createConfigMap(namespace, configPath string) (*v1.ConfigMap, context.Context) {
-	ctx := context.Background()
-	configMap := getConfigMap(eps.T(), configPath)
-
+func (eps *ExcludedPrefixesSuite) deleteConfigMap(ctx context.Context, namespace, name string) {
 	ctx = prefixcollector.WithKubernetesInterface(ctx, eps.clientSet)
-	configMap, err := eps.clientSet.CoreV1().
+	err := eps.clientSet.CoreV1().
+		ConfigMaps(namespace).
+		Delete(ctx, name, metav1.DeleteOptions{})
+
+	if err != nil {
+		eps.T().Fatalf("Error deleting config map: %v", err)
+	}
+}
+
+func (eps *ExcludedPrefixesSuite) createConfigMap(ctx context.Context, namespace, configPath string) {
+	configMap := getConfigMap(eps.T(), configPath)
+	_, err := eps.clientSet.CoreV1().
 		ConfigMaps(namespace).
 		Create(ctx, configMap, metav1.CreateOptions{})
 
 	if err != nil {
 		eps.T().Fatalf("Error creating config map: %v", err)
 	}
-
-	return configMap, ctx
 }
 
 func (eps *ExcludedPrefixesSuite) testCollector(ctx context.Context, notifyChan chan struct{},
@@ -182,7 +225,10 @@ func (eps *ExcludedPrefixesSuite) testCollector(ctx context.Context, notifyChan 
 		sources...,
 	)
 
-	errCh := eps.watchConfigMap(ctx)
+	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*200)
+	defer cancel()
+
+	errCh := eps.watchConfigMap(ctx, len(sources))
 
 	go collector.Serve(ctx)
 
@@ -203,13 +249,14 @@ func (eps *ExcludedPrefixesSuite) testCollector(ctx context.Context, notifyChan 
 	eps.Require().ElementsMatch(expectedResult, prefixes)
 }
 
-func (eps *ExcludedPrefixesSuite) watchConfigMap(ctx context.Context) <-chan error {
+func (eps *ExcludedPrefixesSuite) watchConfigMap(ctx context.Context, maxModifyCount int) <-chan error {
 	watcher, err := eps.clientSet.CoreV1().ConfigMaps(configMapNamespace).Watch(ctx, metav1.ListOptions{})
 	if err != nil {
 		eps.T().Fatalf("Error watching configmap: %v", err)
 	}
 
 	errorCh := make(chan error)
+	modifyCount := 0
 	go func() {
 		for {
 			select {
@@ -221,11 +268,15 @@ func (eps *ExcludedPrefixesSuite) watchConfigMap(ctx context.Context) <-chan err
 				}
 
 				if configMap.Name == nsmConfigMapName && (event.Type == watch.Added || event.Type == watch.Modified) {
-					close(errorCh)
-					return
+					modifyCount++
+					print(modifyCount)
+					if modifyCount == maxModifyCount {
+						close(errorCh)
+						return
+					}
 				}
 			case <-ctx.Done():
-				errorCh <- errors.New("context canceled")
+				close(errorCh)
 				return
 			}
 		}
