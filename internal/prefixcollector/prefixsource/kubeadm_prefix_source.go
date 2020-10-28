@@ -14,9 +14,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package prefixcollector
+package prefixsource
 
 import (
+	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"strings"
@@ -34,8 +35,8 @@ import (
 const (
 	// KubeNamespace is KubeAdm ConfigMap namespace
 	KubeNamespace = "kube-system"
-	// kubeName is KubeAdm ConfigMap name
-	kubeName   = "kubeadm-config"
+	// KubeName is KubeAdm ConfigMap name
+	KubeName   = "kubeadm-config"
 	bufferSize = 4096
 )
 
@@ -44,7 +45,7 @@ type KubeAdmPrefixSource struct {
 	configMapInterface v1.ConfigMapInterface
 	prefixes           *utils.SynchronizedPrefixesContainer
 	ctx                context.Context
-	notify             Notifier
+	notify             chan<- struct{}
 	span               spanhelper.SpanHelper
 }
 
@@ -54,8 +55,8 @@ func (kaps *KubeAdmPrefixSource) Prefixes() []string {
 }
 
 // NewKubeAdmPrefixSource creates KubeAdmPrefixSource
-func NewKubeAdmPrefixSource(ctx context.Context, notify Notifier) *KubeAdmPrefixSource {
-	clientSet := KubernetesInterface(ctx)
+func NewKubeAdmPrefixSource(ctx context.Context, notify chan<- struct{}) *KubeAdmPrefixSource {
+	clientSet := prefixcollector.KubernetesInterface(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(KubeNamespace)
 	kaps := KubeAdmPrefixSource{
 		configMapInterface: configMapInterface,
@@ -94,13 +95,13 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 			}
 
 			configMap, ok := event.Object.(*apiV1.ConfigMap)
-			if !ok || configMap.Name != kubeName {
+			if !ok || configMap.Name != KubeName {
 				continue
 			}
 
 			if event.Type == watch.Deleted {
 				kaps.prefixes.Store([]string(nil))
-				kaps.notify.Broadcast()
+				kaps.notify <- struct{}{}
 				continue
 			}
 
@@ -112,7 +113,7 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 }
 
 func (kaps *KubeAdmPrefixSource) checkCurrentConfigMap() {
-	configMap, err := kaps.configMapInterface.Get(kaps.ctx, kubeName, metav1.GetOptions{})
+	configMap, err := kaps.configMapInterface.Get(kaps.ctx, KubeName, metav1.GetOptions{})
 	logger := kaps.span.Logger()
 
 	if err != nil {
@@ -150,7 +151,7 @@ func (kaps *KubeAdmPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Confi
 	prefixes := []string{podSubnet, serviceSubnet}
 
 	kaps.prefixes.Store(prefixes)
-	kaps.notify.Broadcast()
+	kaps.notify <- struct{}{}
 	logger.Infof("Prefixes sent from kubeadm source: %v", prefixes)
 
 	return nil

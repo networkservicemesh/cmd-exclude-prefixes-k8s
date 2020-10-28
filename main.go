@@ -18,11 +18,11 @@ package main
 
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
+	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixsource"
 	"context"
 	"io/ioutil"
 	"net"
 	"strings"
-	"sync"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/k8s"
 
@@ -85,7 +85,7 @@ func main() {
 	}
 
 	ctx = prefixcollector.WithKubernetesInterface(ctx, kubernetes.Interface(clientSet))
-	cond := sync.NewCond(&sync.Mutex{})
+	notifyChan := make(chan struct{}, 1)
 
 	currentNamespace, err := ioutil.ReadFile(currentNamespacePath)
 	if err != nil {
@@ -93,13 +93,13 @@ func main() {
 	}
 
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
-		cond,
+		notifyChan,
 		config.NSMConfigMapName,
 		strings.TrimSpace(string(currentNamespace)),
-		prefixcollector.NewEnvPrefixSource(envPrefixes),
-		prefixcollector.NewKubeAdmPrefixSource(ctx, cond),
-		prefixcollector.NewKubernetesPrefixSource(ctx, cond),
-		prefixcollector.NewConfigMapPrefixSource(ctx, cond, config.ConfigMapName, config.ConfigMapNamespace),
+		prefixsource.NewEnvPrefixSource(envPrefixes),
+		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
+		prefixsource.NewKubernetesPrefixSource(ctx, notifyChan),
+		prefixsource.NewConfigMapPrefixSource(ctx, notifyChan, config.ConfigMapName, config.ConfigMapNamespace),
 	)
 
 	go excludePrefixService.Serve(ctx)

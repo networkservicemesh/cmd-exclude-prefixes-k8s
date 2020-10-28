@@ -14,10 +14,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package prefixcollector_test
+package prefixsource_test
 
 import (
-	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
+	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixsource"
 	"context"
 	"fmt"
 	"net"
@@ -89,7 +89,7 @@ func checkSubnetWatcher(t *testing.T, subnetSequence, expectedSequence []string)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	subnetChan, err := prefixcollector.WatchSubnet(ctx, dw, keyFuncDummy, subnetFuncDummy)
+	subnetChan, err := prefixsource.WatchSubnet(ctx, dw, keyFuncDummy, subnetFuncDummy)
 	g.Expect(err).To(BeNil())
 
 	for i := 0; i < len(subnetSequence); i++ {
