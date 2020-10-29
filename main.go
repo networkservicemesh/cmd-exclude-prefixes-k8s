@@ -19,6 +19,7 @@ package main
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixsource"
+	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixwriter"
 	"context"
 	"io/ioutil"
 	"net"
@@ -92,14 +93,22 @@ func main() {
 		span.Logger().Fatalf("Error reading namespace from secret: %v", err)
 	}
 
-	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
-		notifyChan,
-		config.NSMConfigMapName,
-		strings.TrimSpace(string(currentNamespace)),
+	prefixSources := []prefixcollector.PrefixSource{
 		prefixsource.NewEnvPrefixSource(envPrefixes),
 		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
 		prefixsource.NewKubernetesPrefixSource(ctx, notifyChan),
 		prefixsource.NewConfigMapPrefixSource(ctx, notifyChan, config.ConfigMapName, config.ConfigMapNamespace),
+	}
+
+	prefixWriters := []prefixcollector.PrefixesWriter{
+		prefixwriter.NewConfigMapWriter(config.NSMConfigMapName, strings.TrimSpace(string(currentNamespace))),
+		prefixwriter.NewFileWriter(""),
+	}
+
+	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
+		notifyChan,
+		prefixcollector.WithPrefixSources(prefixSources...),
+		prefixcollector.WithPrefixWriters(prefixWriters...),
 	)
 
 	go excludePrefixService.Serve(ctx)

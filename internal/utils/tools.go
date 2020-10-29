@@ -21,6 +21,20 @@ import (
 	"github.com/ghodss/yaml"
 )
 
+// PrefixesToYaml converts list of prefixes to yaml file
+func PrefixesToYaml(prefixesList []string) ([]byte, error) {
+	source := struct {
+		Prefixes []string
+	}{prefixesList}
+
+	bytes, err := yaml.Marshal(source)
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes, nil
+}
+
 // YamlToPrefixes converts yaml file to slice of prefixes
 func YamlToPrefixes(bytes []byte) ([]string, error) {
 	destination := struct {

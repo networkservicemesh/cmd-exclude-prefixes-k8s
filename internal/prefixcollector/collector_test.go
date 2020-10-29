@@ -19,6 +19,7 @@ package prefixcollector_test
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixsource"
+	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixwriter"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"errors"
@@ -75,7 +76,7 @@ func (eps *ExcludedPrefixesSuite) TestCollectorWithDummySources() {
 	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
 	defer cancel()
 
-	sources := []prefixcollector.ExcludePrefixSource{
+	sources := []prefixcollector.PrefixSource{
 		newDummyPrefixSource(
 			[]string{
 				"127.0.0.1/16",
@@ -112,7 +113,7 @@ func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
 	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
 	eps.createConfigMap(ctx, configMapNamespace, configMapPath)
 
-	sources := []prefixcollector.ExcludePrefixSource{
+	sources := []prefixcollector.PrefixSource{
 		prefixsource.NewConfigMapPrefixSource(
 			ctx,
 			notifyChan,
@@ -139,7 +140,7 @@ func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
 
 	eps.createConfigMap(ctx, prefixsource.KubeNamespace, kubeConfigMapPath)
 
-	sources := []prefixcollector.ExcludePrefixSource{
+	sources := []prefixcollector.PrefixSource{
 		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
 	}
 
@@ -166,7 +167,7 @@ func (eps *ExcludedPrefixesSuite) TestAllSources() {
 	eps.createConfigMap(ctx, prefixsource.KubeNamespace, kubeConfigMapPath)
 	eps.createConfigMap(ctx, configMapNamespace, configMapPath)
 
-	sources := []prefixcollector.ExcludePrefixSource{
+	sources := []prefixcollector.PrefixSource{
 		newDummyPrefixSource(
 			[]string{
 				"127.0.0.1/16",
@@ -217,12 +218,14 @@ func (eps *ExcludedPrefixesSuite) createConfigMap(ctx context.Context, namespace
 }
 
 func (eps *ExcludedPrefixesSuite) testCollector(ctx context.Context, notifyChan chan struct{},
-	expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
+	expectedResult []string, sources []prefixcollector.PrefixSource) {
+	// TODO get writers as args
 	collector := prefixcollector.NewExcludePrefixCollector(
 		notifyChan,
-		nsmConfigMapName,
-		configMapNamespace,
-		sources...,
+		prefixcollector.WithPrefixSources(sources...),
+		prefixcollector.WithPrefixWriters([]prefixcollector.PrefixesWriter{
+			prefixwriter.NewConfigMapWriter(nsmConfigMapName, configMapNamespace),
+		}...),
 	)
 
 	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*200)

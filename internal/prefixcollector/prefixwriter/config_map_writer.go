@@ -1,0 +1,132 @@
+// Copyright (c) 2020 Doc.ai and/or its affiliates.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package prefixwriter
+
+import (
+	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
+	"cmd-exclude-prefixes-k8s/internal/utils"
+	"context"
+
+	"github.com/sirupsen/logrus"
+	apiV1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
+
+	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
+)
+
+const (
+	configMapKey = "excluded_prefixes.yaml"
+)
+
+type ConfigMapWriter struct {
+	configMapName      string
+	configMapNamespace string
+	configMapInterface v1.ConfigMapInterface
+}
+
+func NewConfigMapWriter(configMapName, configMapNamespace string) *ConfigMapWriter {
+	return &ConfigMapWriter{
+		configMapName:      configMapName,
+		configMapNamespace: configMapNamespace,
+	}
+}
+
+func (c *ConfigMapWriter) Write(ctx context.Context, newPrefixes []string) {
+	c.configMapInterface = prefixcollector.
+		KubernetesInterface(ctx).
+		CoreV1().
+		ConfigMaps(c.configMapNamespace)
+
+	span := spanhelper.FromContext(ctx, "Update excluded prefixes config map")
+	defer span.Finish()
+
+	configMap, err := c.configMapInterface.Get(ctx, c.configMapName, metav1.GetOptions{})
+	if err != nil {
+		span.Logger().Fatalf("Failed to get NSM ConfigMap '%s/%s': %v",
+			c.configMapNamespace, c.configMapName, err)
+		return
+	}
+
+	c.updateConfigMap(ctx, newPrefixes, configMap, span.Logger())
+}
+
+func (c *ConfigMapWriter) updateConfigMap(ctx context.Context, newPrefixes []string,
+	configMap *apiV1.ConfigMap, logger logrus.FieldLogger) {
+	data, err := utils.PrefixesToYaml(newPrefixes)
+	if err != nil {
+		logger.Errorf("Can not create marshal prefixes, err: %v", err)
+		return
+	}
+	configMap.Data[configMapKey] = string(data)
+
+	_, err = c.configMapInterface.Update(ctx, configMap, metav1.UpdateOptions{})
+	if err != nil {
+		logger.Errorf("Failed to update NSM ConfigMap: %v", err)
+		return
+	}
+	logger.Infof("Excluded prefixes were successfully updated: %v", newPrefixes)
+}
+
+func (c *ConfigMapWriter) WatchExcludedPrefixes(ctx context.Context, previousPrefixes *utils.SynchronizedPrefixesContainer) {
+	configMapInterface := prefixcollector.
+		KubernetesInterface(ctx).
+		CoreV1().
+		ConfigMaps(c.configMapNamespace)
+
+	span := spanhelper.FromContext(ctx, "Watch NSM config map")
+	defer span.Finish()
+
+	watcher, err := configMapInterface.Watch(ctx, metav1.ListOptions{})
+	if err != nil {
+		span.Logger().Fatalf("Error watching config map: %v", err)
+	}
+
+	logEntry := span.Logger().WithFields(logrus.Fields{
+		"configmap-namespace": c.configMapNamespace,
+		"configmap-name":      c.configMapName,
+	})
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-watcher.ResultChan():
+			if !ok {
+				return
+			}
+
+			configMap, ok := event.Object.(*apiV1.ConfigMap)
+			if !ok || configMap.Name != c.configMapName {
+				continue
+			}
+
+			switch event.Type {
+			case watch.Error:
+				logEntry.Errorf("Error during nsm configmap watch: %v", err)
+				return
+			case watch.Modified:
+				prefixes, err := utils.YamlToPrefixes([]byte(configMap.Data[configMapKey]))
+				if err != nil || !utils.UnorderedSlicesEquals(prefixes, previousPrefixes.Load()) {
+					logEntry.Warn("Nsm configmap excluded prefixes field external change, restoring last state")
+					c.updateConfigMap(ctx, previousPrefixes.Load(), configMap, logEntry)
+				}
+			}
+		}
+	}
+}
