@@ -31,16 +31,19 @@ const (
 	outputFilePermissions = 0600
 )
 
+// FileWriter - entity, which writes excluded prefixes to file
 type FileWriter struct {
 	filePath string
 }
 
+// NewFileWriter - creates FileWriter
 func NewFileWriter(filePath string) *FileWriter {
 	return &FileWriter{
 		filePath: filePath,
 	}
 }
 
+// Write - write provided prefixes to file
 func (f *FileWriter) Write(ctx context.Context, newPrefixes []string) {
 	span := spanhelper.FromContext(ctx, "Update excluded prefixes file")
 	defer span.Finish()
@@ -57,6 +60,7 @@ func (f *FileWriter) Write(ctx context.Context, newPrefixes []string) {
 	}
 }
 
+// WatchExcludedPrefixes - monitors prefixes file external changes, and restores last saved prefixes, if necessary
 func (f *FileWriter) WatchExcludedPrefixes(ctx context.Context, previousPrefixes *utils.SynchronizedPrefixesContainer) {
 	span := spanhelper.FromContext(ctx, "Watch excluded prefixes file")
 	defer span.Finish()

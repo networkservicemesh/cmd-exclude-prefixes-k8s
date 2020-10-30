@@ -14,6 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package prefixwriter provides excluded prefixes writers
 package prefixwriter
 
 import (
@@ -34,12 +35,14 @@ const (
 	configMapKey = "excluded_prefixes.yaml"
 )
 
+// ConfigMapWriter - entity, which writes excluded prefixes to config map
 type ConfigMapWriter struct {
 	configMapName      string
 	configMapNamespace string
 	configMapInterface v1.ConfigMapInterface
 }
 
+// NewConfigMapWriter - creates ConfigMapWriter
 func NewConfigMapWriter(configMapName, configMapNamespace string) *ConfigMapWriter {
 	return &ConfigMapWriter{
 		configMapName:      configMapName,
@@ -47,6 +50,7 @@ func NewConfigMapWriter(configMapName, configMapNamespace string) *ConfigMapWrit
 	}
 }
 
+// Write - write provided prefixes to configmap
 func (c *ConfigMapWriter) Write(ctx context.Context, newPrefixes []string) {
 	c.configMapInterface = prefixcollector.
 		KubernetesInterface(ctx).
@@ -66,23 +70,7 @@ func (c *ConfigMapWriter) Write(ctx context.Context, newPrefixes []string) {
 	c.updateConfigMap(ctx, newPrefixes, configMap, span.Logger())
 }
 
-func (c *ConfigMapWriter) updateConfigMap(ctx context.Context, newPrefixes []string,
-	configMap *apiV1.ConfigMap, logger logrus.FieldLogger) {
-	data, err := utils.PrefixesToYaml(newPrefixes)
-	if err != nil {
-		logger.Errorf("Can not create marshal prefixes, err: %v", err)
-		return
-	}
-	configMap.Data[configMapKey] = string(data)
-
-	_, err = c.configMapInterface.Update(ctx, configMap, metav1.UpdateOptions{})
-	if err != nil {
-		logger.Errorf("Failed to update NSM ConfigMap: %v", err)
-		return
-	}
-	logger.Infof("Excluded prefixes were successfully updated: %v", newPrefixes)
-}
-
+// WatchExcludedPrefixes - monitors config map external changes, and restores last saved prefixes, if necessary
 func (c *ConfigMapWriter) WatchExcludedPrefixes(ctx context.Context, previousPrefixes *utils.SynchronizedPrefixesContainer) {
 	configMapInterface := prefixcollector.
 		KubernetesInterface(ctx).
@@ -129,4 +117,21 @@ func (c *ConfigMapWriter) WatchExcludedPrefixes(ctx context.Context, previousPre
 			}
 		}
 	}
+}
+
+func (c *ConfigMapWriter) updateConfigMap(ctx context.Context, newPrefixes []string,
+	configMap *apiV1.ConfigMap, logger logrus.FieldLogger) {
+	data, err := utils.PrefixesToYaml(newPrefixes)
+	if err != nil {
+		logger.Errorf("Can not create marshal prefixes, err: %v", err)
+		return
+	}
+	configMap.Data[configMapKey] = string(data)
+
+	_, err = c.configMapInterface.Update(ctx, configMap, metav1.UpdateOptions{})
+	if err != nil {
+		logger.Errorf("Failed to update NSM ConfigMap: %v", err)
+		return
+	}
+	logger.Infof("Excluded prefixes were successfully updated: %v", newPrefixes)
 }

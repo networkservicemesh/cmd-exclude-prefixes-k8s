@@ -25,6 +25,8 @@ import (
 	"net"
 	"strings"
 
+	"github.com/pkg/errors"
+
 	"github.com/networkservicemesh/sdk-k8s/pkg/k8s"
 
 	"github.com/kelseyhightower/envconfig"
@@ -46,6 +48,8 @@ type Config struct {
 	ConfigMapNamespace string   `default:"default" desc:"Namespace of user config map" split_words:"true"`
 	ConfigMapName      string   `default:"excluded-prefixes-config" desc:"Name of user config map" split_words:"true"`
 	NSMConfigMapName   string   `default:"nsm-config" desc:"Name of nsm config map" split_words:"true"`
+	OutputFilePath     string   `default:"/var/lib/networkservicemesh/config/excluded_prefixes.yaml" desc:"Path of output prefixes file" split_words:"true"`
+	PrefixesOutputType string   `default:"file" desc:"Where to write excluded prefixes" split_words:"true"`
 }
 
 func main() {
@@ -88,27 +92,18 @@ func main() {
 	ctx = prefixcollector.WithKubernetesInterface(ctx, kubernetes.Interface(clientSet))
 	notifyChan := make(chan struct{}, 1)
 
-	currentNamespace, err := ioutil.ReadFile(currentNamespacePath)
+	prefixesWriter, err := getPrefixesWriter(config)
 	if err != nil {
-		span.Logger().Fatalf("Error reading namespace from secret: %v", err)
-	}
-
-	prefixSources := []prefixcollector.PrefixSource{
-		prefixsource.NewEnvPrefixSource(envPrefixes),
-		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
-		prefixsource.NewKubernetesPrefixSource(ctx, notifyChan),
-		prefixsource.NewConfigMapPrefixSource(ctx, notifyChan, config.ConfigMapName, config.ConfigMapNamespace),
-	}
-
-	prefixWriters := []prefixcollector.PrefixesWriter{
-		prefixwriter.NewConfigMapWriter(config.NSMConfigMapName, strings.TrimSpace(string(currentNamespace))),
-		prefixwriter.NewFileWriter(""),
+		span.Logger().Fatalf("Failed to parse prefixes output from environment: %v", err)
 	}
 
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
 		notifyChan,
-		prefixcollector.WithPrefixSources(prefixSources...),
-		prefixcollector.WithPrefixWriters(prefixWriters...),
+		prefixesWriter,
+		prefixsource.NewEnvPrefixSource(envPrefixes),
+		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
+		prefixsource.NewKubernetesPrefixSource(ctx, notifyChan),
+		prefixsource.NewConfigMapPrefixSource(ctx, notifyChan, config.ConfigMapName, config.ConfigMapNamespace),
 	)
 
 	go excludePrefixService.Serve(ctx)
@@ -129,4 +124,20 @@ func validatedPrefixes(prefixes []string) ([]string, error) {
 	}
 
 	return validatedPrefixes, nil
+}
+
+func getPrefixesWriter(config *Config) (prefixcollector.PrefixesWriter, error) {
+	switch config.PrefixesOutputType {
+	case "file":
+		return prefixwriter.NewFileWriter(config.OutputFilePath), nil
+	case "config-map":
+		currentNamespace, err := ioutil.ReadFile(currentNamespacePath)
+		if err != nil {
+			return nil, errors.Wrap(err, "Error reading namespace from secret")
+		}
+		return prefixwriter.NewConfigMapWriter(config.NSMConfigMapName,
+			strings.TrimSpace(string(currentNamespace))), nil
+	default:
+		return nil, errors.New("Wrong prefixes output")
+	}
 }

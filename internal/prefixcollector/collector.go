@@ -31,8 +31,7 @@ type PrefixSource interface {
 	Prefixes() []string
 }
 
-type CollectorOption func(*ExcludePrefixCollector)
-
+// PrefixesWriter is excluded prefixes writer
 type PrefixesWriter interface {
 	Write(context.Context, []string)
 	WatchExcludedPrefixes(context.Context, *utils.SynchronizedPrefixesContainer)
@@ -42,45 +41,28 @@ type PrefixesWriter interface {
 // and writing result to outputFilePath in yaml format
 type ExcludePrefixCollector struct {
 	notifyChan       <-chan struct{}
-	writers          []PrefixesWriter
+	writer           PrefixesWriter
 	sources          []PrefixSource
 	previousPrefixes *utils.SynchronizedPrefixesContainer
 }
 
 // NewExcludePrefixCollector creates ExcludePrefixCollector
 func NewExcludePrefixCollector(notifyChan <-chan struct{},
-	options ...CollectorOption) *ExcludePrefixCollector {
+	prefixWriter PrefixesWriter, sources ...PrefixSource) *ExcludePrefixCollector {
 	collector := &ExcludePrefixCollector{
 		notifyChan:       notifyChan,
 		previousPrefixes: utils.NewSynchronizedPrefixesContainer(),
-	}
-
-	for _, option := range options {
-		option(collector)
+		writer:           prefixWriter,
+		sources:          sources,
 	}
 
 	return collector
 }
 
-func WithPrefixWriters(writers ...PrefixesWriter) CollectorOption {
-	return func(c *ExcludePrefixCollector) {
-		c.writers = writers
-	}
-}
-
-func WithPrefixSources(sources ...PrefixSource) CollectorOption {
-	return func(c *ExcludePrefixCollector) {
-		c.sources = sources
-	}
-}
-
 // Serve - begin monitoring sources.
 // Updates exclude prefix file after every notification.
 func (epc *ExcludePrefixCollector) Serve(ctx context.Context) {
-	//go func() { epc.monitorNSMConfigMap(ctx) }()
-	for _, w := range epc.writers {
-		go w.WatchExcludedPrefixes(ctx, epc.previousPrefixes)
-	}
+	go epc.writer.WatchExcludedPrefixes(ctx, epc.previousPrefixes)
 
 	// check current state of sources
 	epc.updateExcludedPrefixes(ctx)
@@ -115,8 +97,5 @@ func (epc *ExcludePrefixCollector) updateExcludedPrefixes(ctx context.Context) {
 	}
 
 	epc.previousPrefixes.Store(newPrefixes)
-
-	for _, w := range epc.writers {
-		w.Write(ctx, newPrefixes)
-	}
+	epc.writer.Write(ctx, newPrefixes)
 }
