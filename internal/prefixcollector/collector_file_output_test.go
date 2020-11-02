@@ -98,8 +98,8 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithFileOutput(ctx context.Contex
 		eps.T().Fatalf("Error watching file: %v", watchErr)
 	}
 
-	if err := watcher.Close(); err != nil {
-		eps.T().Errorf("Error closing watcher: %v", err)
+	if watchErr := watcher.Close(); watchErr != nil {
+		eps.T().Errorf("Error closing watcher: %v", watchErr)
 	}
 
 	bytes, err := ioutil.ReadFile(filepath.Clean(prefixesFilePath))
@@ -116,20 +116,20 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithFileOutput(ctx context.Contex
 }
 
 func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePath string,
-	maxModifyCount int) (watcher *fsnotify.Watcher, errorCh chan error) {
+	maxModifyCount int) (*fsnotify.Watcher, chan error) {
 	watcher, err := fsnotify.NewWatcher()
-	errorCh = make(chan error)
+	errorCh := make(chan error)
 	modifyCount := 0
 
 	if err != nil {
 		errorCh <- err
-		return
+		return watcher, errorCh
 	}
 
 	err = watcher.Add(prefixesFilePath)
 	if err != nil {
 		errorCh <- err
-		return
+		return watcher, errorCh
 	}
 
 	go func() {
@@ -159,5 +159,5 @@ func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePat
 		}
 	}()
 
-	return
+	return watcher, errorCh
 }
