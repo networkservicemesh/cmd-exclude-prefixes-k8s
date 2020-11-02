@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package prefixwriter provides excluded prefixes writers
+// Package prefixwriter provides excluded prefixes writer funcs
 package prefixwriter
 
 import (
@@ -22,6 +22,7 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	apiV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,103 +36,95 @@ const (
 	configMapKey = "excluded_prefixes.yaml"
 )
 
-// ConfigMapWriter - entity, which writes excluded prefixes to config map
-type ConfigMapWriter struct {
-	configMapName      string
-	configMapNamespace string
-	configMapInterface v1.ConfigMapInterface
-}
+// NewConfigMapWriter - creates k8s config map WritePrefixesFunc
+func NewConfigMapWriter(configMapName, configMapNamespace string) prefixcollector.WritePrefixesFunc {
+	return func(ctx context.Context, newPrefixes []string) {
+		configMapInterface := prefixcollector.
+			KubernetesInterface(ctx).
+			CoreV1().
+			ConfigMaps(configMapNamespace)
 
-// NewConfigMapWriter - creates ConfigMapWriter
-func NewConfigMapWriter(configMapName, configMapNamespace string) *ConfigMapWriter {
-	return &ConfigMapWriter{
-		configMapName:      configMapName,
-		configMapNamespace: configMapNamespace,
-	}
-}
+		span := spanhelper.FromContext(ctx, "Update excluded prefixes config map")
+		defer span.Finish()
 
-// Write - write provided prefixes to configmap
-func (c *ConfigMapWriter) Write(ctx context.Context, newPrefixes []string) {
-	c.configMapInterface = prefixcollector.
-		KubernetesInterface(ctx).
-		CoreV1().
-		ConfigMaps(c.configMapNamespace)
-
-	span := spanhelper.FromContext(ctx, "Update excluded prefixes config map")
-	defer span.Finish()
-
-	configMap, err := c.configMapInterface.Get(ctx, c.configMapName, metav1.GetOptions{})
-	if err != nil {
-		span.Logger().Fatalf("Failed to get NSM ConfigMap '%s/%s': %v",
-			c.configMapNamespace, c.configMapName, err)
-		return
-	}
-
-	c.updateConfigMap(ctx, newPrefixes, configMap, span.Logger())
-}
-
-// WatchExcludedPrefixes - monitors config map external changes, and restores last saved prefixes, if necessary
-func (c *ConfigMapWriter) WatchExcludedPrefixes(ctx context.Context, previousPrefixes *utils.SynchronizedPrefixesContainer) {
-	configMapInterface := prefixcollector.
-		KubernetesInterface(ctx).
-		CoreV1().
-		ConfigMaps(c.configMapNamespace)
-
-	span := spanhelper.FromContext(ctx, "Watch NSM config map")
-	defer span.Finish()
-
-	watcher, err := configMapInterface.Watch(ctx, metav1.ListOptions{})
-	if err != nil {
-		span.Logger().Fatalf("Error watching config map: %v", err)
-	}
-
-	logEntry := span.Logger().WithFields(logrus.Fields{
-		"configmap-namespace": c.configMapNamespace,
-		"configmap-name":      c.configMapName,
-	})
-
-	for {
-		select {
-		case <-ctx.Done():
+		configMap, err := configMapInterface.Get(ctx, configMapName, metav1.GetOptions{})
+		if err != nil {
+			span.Logger().Fatalf("Failed to get NSM ConfigMap '%s/%s': %v",
+				configMapNamespace, configMapName, err)
 			return
-		case event, ok := <-watcher.ResultChan():
-			if !ok {
-				return
-			}
+		}
 
-			configMap, ok := event.Object.(*apiV1.ConfigMap)
-			if !ok || configMap.Name != c.configMapName {
-				continue
-			}
+		if err := updateConfigMap(ctx, newPrefixes, configMap, configMapInterface); err != nil {
+			span.Logger().Error(err)
+		}
+	}
+}
 
-			switch event.Type {
-			case watch.Error:
-				logEntry.Errorf("Error during nsm configmap watch: %v", err)
+// NewConfigMapWatchFunc - creates WatchPrefixesFunc, that keep track of prefixes k8s config map external changes
+func NewConfigMapWatchFunc(configMapName, configMapNamespace string) prefixcollector.WatchPrefixesFunc {
+	return func(ctx context.Context, previousPrefixes *utils.SynchronizedPrefixesContainer) {
+		configMapInterface := prefixcollector.
+			KubernetesInterface(ctx).
+			CoreV1().
+			ConfigMaps(configMapNamespace)
+
+		span := spanhelper.FromContext(ctx, "Watch NSM config map")
+		defer span.Finish()
+
+		watcher, err := configMapInterface.Watch(ctx, metav1.ListOptions{})
+		if err != nil {
+			span.Logger().Fatalf("Error watching config map: %v", err)
+		}
+
+		logEntry := span.Logger().WithFields(logrus.Fields{
+			"configmap-namespace": configMapNamespace,
+			"configmap-name":      configMapName,
+		})
+
+		for {
+			select {
+			case <-ctx.Done():
 				return
-			case watch.Modified:
-				prefixes, err := utils.YamlToPrefixes([]byte(configMap.Data[configMapKey]))
-				if err != nil || !utils.UnorderedSlicesEquals(prefixes, previousPrefixes.Load()) {
-					logEntry.Warn("Nsm configmap excluded prefixes field external change, restoring last state")
-					c.updateConfigMap(ctx, previousPrefixes.Load(), configMap, logEntry)
+			case event, ok := <-watcher.ResultChan():
+				if !ok {
+					return
+				}
+
+				configMap, ok := event.Object.(*apiV1.ConfigMap)
+				if !ok || configMap.Name != configMapName {
+					continue
+				}
+
+				switch event.Type {
+				case watch.Error:
+					logEntry.Errorf("Error during nsm configmap watch: %v", err)
+					return
+				case watch.Modified:
+					prefixes, err := utils.YamlToPrefixes([]byte(configMap.Data[configMapKey]))
+					if err != nil || !utils.UnorderedSlicesEquals(prefixes, previousPrefixes.Load()) {
+						logEntry.Warn("Nsm configmap excluded prefixes field external change, restoring last state")
+						if err := updateConfigMap(ctx, previousPrefixes.Load(), configMap, configMapInterface); err != nil {
+							span.Logger().Error(err)
+						}
+					}
 				}
 			}
 		}
 	}
 }
 
-func (c *ConfigMapWriter) updateConfigMap(ctx context.Context, newPrefixes []string,
-	configMap *apiV1.ConfigMap, logger logrus.FieldLogger) {
+func updateConfigMap(ctx context.Context, newPrefixes []string,
+	configMap *apiV1.ConfigMap, configMapInterface v1.ConfigMapInterface) error {
 	data, err := utils.PrefixesToYaml(newPrefixes)
 	if err != nil {
-		logger.Errorf("Can not create marshal prefixes, err: %v", err)
-		return
+		return errors.Wrapf(err, "Can not create marshal prefixes")
 	}
 	configMap.Data[configMapKey] = string(data)
 
-	_, err = c.configMapInterface.Update(ctx, configMap, metav1.UpdateOptions{})
+	_, err = configMapInterface.Update(ctx, configMap, metav1.UpdateOptions{})
 	if err != nil {
-		logger.Errorf("Failed to update NSM ConfigMap: %v", err)
-		return
+		return errors.Wrapf(err, "Failed to update NSM ConfigMap")
 	}
-	logger.Infof("Excluded prefixes were successfully updated: %v", newPrefixes)
+
+	return nil
 }

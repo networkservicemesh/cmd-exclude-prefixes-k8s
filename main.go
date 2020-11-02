@@ -40,6 +40,8 @@ import (
 const (
 	envPrefix            = "exclude_prefixes_k8s"
 	currentNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+	configMapOutputType  = "config-map"
+	fileOutputType       = "file"
 )
 
 // Config - configuration for cmd-exclude-prefixes-k8s
@@ -92,14 +94,21 @@ func main() {
 	ctx = prefixcollector.WithKubernetesInterface(ctx, kubernetes.Interface(clientSet))
 	notifyChan := make(chan struct{}, 1)
 
-	prefixesWriter, err := getPrefixesWriter(config)
+	currentNamespaceBytes, err := ioutil.ReadFile(currentNamespacePath)
+	if err != nil {
+		span.Logger().Fatalf("Error reading namespace from secret: %v", err)
+	}
+	currentNamespace := strings.TrimSpace(string(currentNamespaceBytes))
+
+	prefixesWriteFunc, err := getPrefixesWriteFunc(config, currentNamespace)
 	if err != nil {
 		span.Logger().Fatalf("Failed to parse prefixes output from environment: %v", err)
 	}
 
 	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
 		notifyChan,
-		prefixesWriter,
+		prefixesWriteFunc,
+		getPrefixesWatchFunc(config, currentNamespace),
 		prefixsource.NewEnvPrefixSource(envPrefixes),
 		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
 		prefixsource.NewKubernetesPrefixSource(ctx, notifyChan),
@@ -126,18 +135,20 @@ func validatedPrefixes(prefixes []string) ([]string, error) {
 	return validatedPrefixes, nil
 }
 
-func getPrefixesWriter(config *Config) (prefixcollector.PrefixesWriter, error) {
+func getPrefixesWriteFunc(config *Config, currentNamespace string) (prefixcollector.WritePrefixesFunc, error) {
 	switch config.PrefixesOutputType {
-	case "file":
+	case fileOutputType:
 		return prefixwriter.NewFileWriter(config.OutputFilePath), nil
-	case "config-map":
-		currentNamespace, err := ioutil.ReadFile(currentNamespacePath)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error reading namespace from secret")
-		}
-		return prefixwriter.NewConfigMapWriter(config.NSMConfigMapName,
-			strings.TrimSpace(string(currentNamespace))), nil
+	case configMapOutputType:
+		return prefixwriter.NewConfigMapWriter(config.NSMConfigMapName, currentNamespace), nil
 	default:
 		return nil, errors.New("Wrong prefixes output")
 	}
+}
+
+func getPrefixesWatchFunc(config *Config, currentNamespace string) prefixcollector.WatchPrefixesFunc {
+	if config.PrefixesOutputType == configMapOutputType {
+		return prefixwriter.NewConfigMapWatchFunc(config.NSMConfigMapName, currentNamespace)
+	}
+	return nil
 }

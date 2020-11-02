@@ -23,6 +23,8 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -31,7 +33,7 @@ import (
 )
 
 const (
-	prefixesFilePath = "excluded_prefixes.yaml"
+	prefixesFileName = "excluded_prefixes.yaml"
 )
 
 func (eps *ExcludedPrefixesSuite) TestAllSourcesWithFileOutput() {
@@ -69,56 +71,65 @@ func (eps *ExcludedPrefixesSuite) TestAllSourcesWithFileOutput() {
 		),
 	}
 
-	eps.testCollectorWithConfigmapOutput(ctx, notifyChan, expectedResult, sources)
+	eps.testCollectorWithFileOutput(ctx, notifyChan, expectedResult, sources)
 }
 
 func (eps *ExcludedPrefixesSuite) testCollectorWithFileOutput(ctx context.Context, notifyChan chan struct{},
 	expectedResult []string, sources []prefixcollector.PrefixSource) {
+	prefixesFilePath := filepath.Join(os.TempDir(), prefixesFileName)
+	_, err := os.Create(prefixesFilePath)
+	eps.Require().NoError(err)
+
 	collector := prefixcollector.NewExcludePrefixCollector(
 		notifyChan,
 		prefixwriter.NewFileWriter(prefixesFilePath),
+		nil,
 		sources...,
 	)
 
-	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*200)
+	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*500)
 	defer cancel()
 
-	errCh := eps.watchFile(ctx, len(sources))
+	watcher, errCh := eps.watchFile(ctx, prefixesFilePath, len(sources))
 
 	go collector.Serve(ctx)
 
-	if err := <-errCh; err != nil {
-		eps.T().Fatal("Error watching file: ", err)
+	if watchErr := <-errCh; watchErr != nil {
+		eps.T().Fatalf("Error watching file: %v", watchErr)
 	}
 
-	bytes, err := ioutil.ReadFile(prefixesFilePath)
+	if err := watcher.Close(); err != nil {
+		eps.T().Errorf("Error closing watcher: %v", err)
+	}
+
+	bytes, err := ioutil.ReadFile(filepath.Clean(prefixesFilePath))
 	if err != nil {
-		eps.T().Fatal("Error reading file: ", err)
+		eps.T().Fatalf("Error reading file: %v", err)
 	}
 
 	prefixes, err := utils.YamlToPrefixes(bytes)
 	if err != nil {
-		eps.T().Fatal("Error transforming yaml to prefixes: ", err)
+		eps.T().Fatalf("Error transforming yaml to prefixes: %v", err)
 	}
 
 	eps.Require().ElementsMatch(expectedResult, prefixes)
 }
 
-func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, maxModifyCount int) <-chan error {
+func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePath string,
+	maxModifyCount int) (watcher *fsnotify.Watcher, errorCh chan error) {
 	watcher, err := fsnotify.NewWatcher()
-	errorCh := make(chan error)
+	errorCh = make(chan error)
 	modifyCount := 0
 
 	if err != nil {
 		errorCh <- err
-		return errorCh
+		return
 	}
-	defer func() { _ = watcher.Close() }()
 
 	err = watcher.Add(prefixesFilePath)
 	if err != nil {
 		errorCh <- err
-		return errorCh
+		return
 	}
 
 	go func() {
@@ -148,5 +159,5 @@ func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, maxModifyCount 
 		}
 	}()
 
-	return errorCh
+	return
 }

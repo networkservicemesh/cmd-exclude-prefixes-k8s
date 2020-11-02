@@ -21,6 +21,8 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 
+	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
+
 	"github.com/sirupsen/logrus"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
@@ -31,28 +33,30 @@ type PrefixSource interface {
 	Prefixes() []string
 }
 
-// PrefixesWriter is excluded prefixes writer
-type PrefixesWriter interface {
-	Write(context.Context, []string)
-	WatchExcludedPrefixes(context.Context, *utils.SynchronizedPrefixesContainer)
-}
+// WritePrefixesFunc is excluded prefixes write func
+type WritePrefixesFunc func(context.Context, []string)
+
+// WatchPrefixesFunc is excluded prefixes resource watch func
+type WatchPrefixesFunc func(context.Context, *utils.SynchronizedPrefixesContainer)
 
 // ExcludePrefixCollector is service, collecting excluded prefixes from list of PrefixSource
 // and writing result to outputFilePath in yaml format
 type ExcludePrefixCollector struct {
 	notifyChan       <-chan struct{}
-	writer           PrefixesWriter
+	writeFunc        WritePrefixesFunc
+	watchFunc        WatchPrefixesFunc
 	sources          []PrefixSource
 	previousPrefixes *utils.SynchronizedPrefixesContainer
 }
 
 // NewExcludePrefixCollector creates ExcludePrefixCollector
-func NewExcludePrefixCollector(notifyChan <-chan struct{},
-	prefixWriter PrefixesWriter, sources ...PrefixSource) *ExcludePrefixCollector {
+func NewExcludePrefixCollector(notifyChan <-chan struct{}, writeFunc WritePrefixesFunc,
+	watchFunc WatchPrefixesFunc, sources ...PrefixSource) *ExcludePrefixCollector {
 	collector := &ExcludePrefixCollector{
 		notifyChan:       notifyChan,
 		previousPrefixes: utils.NewSynchronizedPrefixesContainer(),
-		writer:           prefixWriter,
+		writeFunc:        writeFunc,
+		watchFunc:        watchFunc,
 		sources:          sources,
 	}
 
@@ -62,7 +66,9 @@ func NewExcludePrefixCollector(notifyChan <-chan struct{},
 // Serve - begin monitoring sources.
 // Updates exclude prefix file after every notification.
 func (epc *ExcludePrefixCollector) Serve(ctx context.Context) {
-	go epc.writer.WatchExcludedPrefixes(ctx, epc.previousPrefixes)
+	if epc.watchFunc != nil {
+		go epc.watchFunc(ctx, epc.previousPrefixes)
+	}
 
 	// check current state of sources
 	epc.updateExcludedPrefixes(ctx)
@@ -96,6 +102,9 @@ func (epc *ExcludePrefixCollector) updateExcludedPrefixes(ctx context.Context) {
 		return
 	}
 
+	span := spanhelper.FromContext(ctx, "Update excluded prefixes")
+
 	epc.previousPrefixes.Store(newPrefixes)
-	epc.writer.Write(ctx, newPrefixes)
+	epc.writeFunc(ctx, newPrefixes)
+	span.Logger().Infof("Excluded prefixes were successfully updated: %v", newPrefixes)
 }

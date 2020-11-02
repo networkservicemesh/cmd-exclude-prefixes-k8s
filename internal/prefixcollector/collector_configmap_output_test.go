@@ -216,10 +216,11 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithConfigmapOutput(ctx context.C
 	collector := prefixcollector.NewExcludePrefixCollector(
 		notifyChan,
 		prefixwriter.NewConfigMapWriter(nsmConfigMapName, configMapNamespace),
+		prefixwriter.NewConfigMapWatchFunc(nsmConfigMapName, configMapNamespace),
 		sources...,
 	)
 
-	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*200)
+	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*500)
 	defer cancel()
 
 	errCh := eps.watchConfigMap(ctx, len(sources))
