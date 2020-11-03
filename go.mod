@@ -3,6 +3,7 @@ module cmd-exclude-prefixes-k8s
 go 1.15
 
 require (
+	github.com/fsnotify/fsnotify v1.4.7
 	github.com/ghodss/yaml v1.0.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/networkservicemesh/sdk v0.0.0-20200827102544-4b23de9a2ad4

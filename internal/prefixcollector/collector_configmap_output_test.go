@@ -69,13 +69,18 @@ func (eps *ExcludedPrefixesSuite) SetupSuite() {
 	eps.createConfigMap(context.Background(), configMapNamespace, nsmConfigMapPath)
 }
 
+func (eps *ExcludedPrefixesSuite) TearDownTest() {
+	eps.deleteConfigMap(context.Background(), prefixsource.KubeNamespace, prefixsource.KubeName)
+	eps.deleteConfigMap(context.Background(), configMapNamespace, userConfigMapName)
+}
+
 func (eps *ExcludedPrefixesSuite) TestCollectorWithDummySources() {
 	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
 	notifyChan := make(chan struct{}, 1)
 	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
 	defer cancel()
 
-	sources := []prefixcollector.ExcludePrefixSource{
+	sources := []prefixcollector.PrefixSource{
 		newDummyPrefixSource(
 			[]string{
 				"127.0.0.1/16",
@@ -98,7 +103,7 @@ func (eps *ExcludedPrefixesSuite) TestCollectorWithDummySources() {
 		"134.0.0.0/8",
 	}
 
-	eps.testCollector(ctx, notifyChan, expectedResult, sources)
+	eps.testCollectorWithConfigmapOutput(ctx, notifyChan, expectedResult, sources)
 }
 
 func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
@@ -110,9 +115,10 @@ func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
 	notifyChan := make(chan struct{}, 1)
 
 	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
+	defer cancel()
 	eps.createConfigMap(ctx, configMapNamespace, configMapPath)
 
-	sources := []prefixcollector.ExcludePrefixSource{
+	sources := []prefixcollector.PrefixSource{
 		prefixsource.NewConfigMapPrefixSource(
 			ctx,
 			notifyChan,
@@ -121,10 +127,7 @@ func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
 		),
 	}
 
-	eps.testCollector(ctx, notifyChan, expectedResult, sources)
-	cancel()
-
-	eps.deleteConfigMap(ctx, configMapNamespace, userConfigMapName)
+	eps.testCollectorWithConfigmapOutput(ctx, notifyChan, expectedResult, sources)
 }
 
 func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
@@ -136,17 +139,15 @@ func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
 
 	notifyChan := make(chan struct{}, 1)
 	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
+	defer cancel()
 
 	eps.createConfigMap(ctx, prefixsource.KubeNamespace, kubeConfigMapPath)
 
-	sources := []prefixcollector.ExcludePrefixSource{
+	sources := []prefixcollector.PrefixSource{
 		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
 	}
 
-	eps.testCollector(ctx, notifyChan, expectedResult, sources)
-	cancel()
-
-	eps.deleteConfigMap(ctx, prefixsource.KubeNamespace, prefixsource.KubeName)
+	eps.testCollectorWithConfigmapOutput(ctx, notifyChan, expectedResult, sources)
 }
 
 func (eps *ExcludedPrefixesSuite) TestAllSources() {
@@ -162,11 +163,12 @@ func (eps *ExcludedPrefixesSuite) TestAllSources() {
 
 	notifyChan := make(chan struct{}, 1)
 	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
+	defer cancel()
 
 	eps.createConfigMap(ctx, prefixsource.KubeNamespace, kubeConfigMapPath)
 	eps.createConfigMap(ctx, configMapNamespace, configMapPath)
 
-	sources := []prefixcollector.ExcludePrefixSource{
+	sources := []prefixcollector.PrefixSource{
 		newDummyPrefixSource(
 			[]string{
 				"127.0.0.1/16",
@@ -183,11 +185,7 @@ func (eps *ExcludedPrefixesSuite) TestAllSources() {
 		),
 	}
 
-	eps.testCollector(ctx, notifyChan, expectedResult, sources)
-	cancel()
-
-	eps.deleteConfigMap(ctx, prefixsource.KubeNamespace, prefixsource.KubeName)
-	eps.deleteConfigMap(ctx, configMapNamespace, userConfigMapName)
+	eps.testCollectorWithConfigmapOutput(ctx, notifyChan, expectedResult, sources)
 }
 
 func TestExcludedPrefixesSuite(t *testing.T) {
@@ -196,13 +194,9 @@ func TestExcludedPrefixesSuite(t *testing.T) {
 
 func (eps *ExcludedPrefixesSuite) deleteConfigMap(ctx context.Context, namespace, name string) {
 	ctx = prefixcollector.WithKubernetesInterface(ctx, eps.clientSet)
-	err := eps.clientSet.CoreV1().
+	_ = eps.clientSet.CoreV1().
 		ConfigMaps(namespace).
 		Delete(ctx, name, metav1.DeleteOptions{})
-
-	if err != nil {
-		eps.T().Fatalf("Error deleting config map: %v", err)
-	}
 }
 
 func (eps *ExcludedPrefixesSuite) createConfigMap(ctx context.Context, namespace, configPath string) {
@@ -216,16 +210,15 @@ func (eps *ExcludedPrefixesSuite) createConfigMap(ctx context.Context, namespace
 	}
 }
 
-func (eps *ExcludedPrefixesSuite) testCollector(ctx context.Context, notifyChan chan struct{},
-	expectedResult []string, sources []prefixcollector.ExcludePrefixSource) {
+func (eps *ExcludedPrefixesSuite) testCollectorWithConfigmapOutput(ctx context.Context, notifyChan chan struct{},
+	expectedResult []string, sources []prefixcollector.PrefixSource) {
 	collector := prefixcollector.NewExcludePrefixCollector(
-		notifyChan,
-		nsmConfigMapName,
-		configMapNamespace,
-		sources...,
+		prefixcollector.WithNotifyChan(notifyChan),
+		prefixcollector.WithConfigMapOutput(nsmConfigMapName, configMapNamespace),
+		prefixcollector.WithSources(sources...),
 	)
 
-	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*200)
+	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*500)
 	defer cancel()
 
 	errCh := eps.watchConfigMap(ctx, len(sources))
