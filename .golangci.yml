@@ -56,7 +56,7 @@ linters-settings:
   unparam:
     check-exported: false
   nakedret:
-    max-func-lines: 30
+    max-func-lines: 50
   prealloc:
     simple: true
     range-loops: true

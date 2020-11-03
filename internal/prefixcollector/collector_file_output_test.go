@@ -116,20 +116,20 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithFileOutput(ctx context.Contex
 }
 
 func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePath string,
-	maxModifyCount int) (*fsnotify.Watcher, chan error) {
+	maxModifyCount int) (watcher *fsnotify.Watcher, errorCh chan error) {
 	watcher, err := fsnotify.NewWatcher()
-	errorCh := make(chan error)
+	errorCh = make(chan error)
 	modifyCount := 0
 
 	if err != nil {
 		errorCh <- err
-		return watcher, errorCh
+		return
 	}
 
 	err = watcher.Add(prefixesFilePath)
 	if err != nil {
 		errorCh <- err
-		return watcher, errorCh
+		return
 	}
 
 	go func() {
@@ -159,5 +159,5 @@ func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePat
 		}
 	}()
 
-	return watcher, errorCh
+	return
 }
