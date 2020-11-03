@@ -218,7 +218,7 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithConfigmapOutput(ctx context.C
 		prefixcollector.WithSources(sources...),
 	)
 
-	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*500)
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
 	errCh := eps.watchConfigMap(ctx, len(sources))
