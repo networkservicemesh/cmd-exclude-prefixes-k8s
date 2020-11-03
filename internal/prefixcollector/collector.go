@@ -28,36 +28,72 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 )
 
+const defaultPrefixesFilePath = "/var/lib/networkservicemesh/config/excluded_prefixes.yaml"
+
 // PrefixSource is source of excluded prefixes
 type PrefixSource interface {
 	Prefixes() []string
 }
 
-// WritePrefixesFunc is excluded prefixes write func
-type WritePrefixesFunc func(context.Context, []string)
+// writePrefixesFunc is excluded prefixes write func
+type writePrefixesFunc func(context.Context, []string)
 
-// WatchPrefixesFunc is excluded prefixes resource watch func
-type WatchPrefixesFunc func(context.Context, *utils.SynchronizedPrefixesContainer)
+// watchPrefixesFunc is excluded prefixes resource watch func
+type watchPrefixesFunc func(context.Context, *utils.SynchronizedPrefixesContainer)
 
-// ExcludePrefixCollector is service, collecting excluded prefixes from list of PrefixSource
-// and writing result to outputFilePath in yaml format
-type ExcludePrefixCollector struct {
+// Option is ExcludedPrefixCollector option
+type Option func(collector *ExcludedPrefixCollector)
+
+// ExcludedPrefixCollector is service, collecting excluded prefixes from list of PrefixSource
+// and writing result using provided writePrefixesFunc
+type ExcludedPrefixCollector struct {
 	notifyChan       <-chan struct{}
-	writeFunc        WritePrefixesFunc
-	watchFunc        WatchPrefixesFunc
+	writeFunc        writePrefixesFunc
+	watchFunc        watchPrefixesFunc
 	sources          []PrefixSource
 	previousPrefixes *utils.SynchronizedPrefixesContainer
 }
 
-// NewExcludePrefixCollector creates ExcludePrefixCollector
-func NewExcludePrefixCollector(notifyChan <-chan struct{}, writeFunc WritePrefixesFunc,
-	watchFunc WatchPrefixesFunc, sources ...PrefixSource) *ExcludePrefixCollector {
-	collector := &ExcludePrefixCollector{
-		notifyChan:       notifyChan,
+// WithFileOutput is ExcludedPrefixCollector option, which sets file output
+func WithFileOutput(outputFilePath string) Option {
+	return func(collector *ExcludedPrefixCollector) {
+		collector.writeFunc = fileWriter(outputFilePath)
+		collector.watchFunc = nil
+	}
+}
+
+// WithConfigMapOutput is ExcludedPrefixCollector option, which sets configMap output
+func WithConfigMapOutput(name, namespace string) Option {
+	return func(collector *ExcludedPrefixCollector) {
+		collector.writeFunc = configMapWriter(name, namespace)
+		collector.watchFunc = configMapWatchFunc(name, namespace)
+	}
+}
+
+// WithNotifyChan is ExcludedPrefixCollector option, which sets notify chan for collector
+func WithNotifyChan(notifyChan <-chan struct{}) Option {
+	return func(collector *ExcludedPrefixCollector) {
+		collector.notifyChan = notifyChan
+	}
+}
+
+// WithSources is ExcludedPrefixCollector option, which sets prefix sources
+func WithSources(sources ...PrefixSource) Option {
+	return func(collector *ExcludedPrefixCollector) {
+		collector.sources = sources
+	}
+}
+
+// NewExcludePrefixCollector creates ExcludedPrefixCollector
+func NewExcludePrefixCollector(options ...Option) *ExcludedPrefixCollector {
+	collector := &ExcludedPrefixCollector{
+		notifyChan:       make(chan struct{}, 1),
 		previousPrefixes: utils.NewSynchronizedPrefixesContainer(),
-		writeFunc:        writeFunc,
-		watchFunc:        watchFunc,
-		sources:          sources,
+		writeFunc:        fileWriter(defaultPrefixesFilePath),
+	}
+
+	for _, option := range options {
+		option(collector)
 	}
 
 	return collector
@@ -65,7 +101,7 @@ func NewExcludePrefixCollector(notifyChan <-chan struct{}, writeFunc WritePrefix
 
 // Serve - begin monitoring sources.
 // Updates exclude prefix file after every notification.
-func (epc *ExcludePrefixCollector) Serve(ctx context.Context) {
+func (epc *ExcludedPrefixCollector) Serve(ctx context.Context) {
 	if epc.watchFunc != nil {
 		go epc.watchFunc(ctx, epc.previousPrefixes)
 	}
@@ -82,7 +118,7 @@ func (epc *ExcludePrefixCollector) Serve(ctx context.Context) {
 	}
 }
 
-func (epc *ExcludePrefixCollector) updateExcludedPrefixes(ctx context.Context) {
+func (epc *ExcludedPrefixCollector) updateExcludedPrefixes(ctx context.Context) {
 	excludePrefixPool, _ := prefixpool.New()
 
 	for _, v := range epc.sources {

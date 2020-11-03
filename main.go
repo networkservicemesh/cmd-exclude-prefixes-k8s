@@ -19,13 +19,9 @@ package main
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixsource"
-	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixwriter"
 	"context"
 	"io/ioutil"
-	"net"
 	"strings"
-
-	"github.com/pkg/errors"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/k8s"
 
@@ -40,19 +36,7 @@ import (
 const (
 	envPrefix            = "exclude_prefixes_k8s"
 	currentNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-	configMapOutputType  = "config-map"
-	fileOutputType       = "file"
 )
-
-// Config - configuration for cmd-exclude-prefixes-k8s
-type Config struct {
-	ExcludedPrefixes   []string `desc:"List of excluded prefixes" split_words:"true"`
-	ConfigMapNamespace string   `default:"default" desc:"Namespace of user config map" split_words:"true"`
-	ConfigMapName      string   `default:"excluded-prefixes-config" desc:"Name of user config map" split_words:"true"`
-	NSMConfigMapName   string   `default:"nsm-config" desc:"Name of nsm config map" split_words:"true"`
-	OutputFilePath     string   `default:"/var/lib/networkservicemesh/config/excluded_prefixes.yaml" desc:"Path of output prefixes file" split_words:"true"`
-	PrefixesOutputType string   `default:"file" desc:"Where to write excluded prefixes" split_words:"true"`
-}
 
 func main() {
 	// Capture signals to cleanup before exiting
@@ -65,17 +49,15 @@ func main() {
 	defer span.Finish()
 
 	// Get clientSetConfig from environment
-	config := &Config{}
+	config := &prefixcollector.Config{}
 	if err := envconfig.Usage(envPrefix, config); err != nil {
 		span.Logger().Fatal(err)
 	}
 	if err := envconfig.Process(envPrefix, config); err != nil {
 		span.Logger().Fatalf("Error processing clientSetConfig from env: %v", err)
 	}
-
-	envPrefixes, err := validatedPrefixes(config.ExcludedPrefixes)
-	if err != nil {
-		span.Logger().Fatalf("Failed to parse prefixes from environment: %v", err)
+	if err := config.Validate(); err != nil {
+		span.Logger().Fatalf("Error validating Config from env: %v", err)
 	}
 
 	span.Logger().Info("Building Kubernetes clientSet...")
@@ -92,63 +74,35 @@ func main() {
 	}
 
 	ctx = prefixcollector.WithKubernetesInterface(ctx, kubernetes.Interface(clientSet))
+
+	prefixesOutputOption := prefixcollector.WithFileOutput(config.OutputFilePath)
+	if config.PrefixesOutputType == prefixcollector.ConfigMapOutputType {
+		currentNamespaceBytes, ioErr := ioutil.ReadFile(currentNamespacePath)
+		if ioErr != nil {
+			span.Logger().Fatalf("Error reading namespace from secret: %v", ioErr)
+		}
+		currentNamespace := strings.TrimSpace(string(currentNamespaceBytes))
+		prefixesOutputOption = prefixcollector.WithConfigMapOutput(config.NSMConfigMapName, currentNamespace)
+	}
+
+	if err != nil {
+		span.Logger().Fatal(err)
+	}
+
 	notifyChan := make(chan struct{}, 1)
-
-	currentNamespaceBytes, err := ioutil.ReadFile(currentNamespacePath)
-	if err != nil {
-		span.Logger().Fatalf("Error reading namespace from secret: %v", err)
-	}
-	currentNamespace := strings.TrimSpace(string(currentNamespaceBytes))
-
-	prefixesWriteFunc, err := getPrefixesWriteFunc(config, currentNamespace)
-	if err != nil {
-		span.Logger().Fatalf("Failed to parse prefixes output from environment: %v", err)
-	}
-
-	excludePrefixService := prefixcollector.NewExcludePrefixCollector(
-		notifyChan,
-		prefixesWriteFunc,
-		getPrefixesWatchFunc(config, currentNamespace),
-		prefixsource.NewEnvPrefixSource(envPrefixes),
-		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
-		prefixsource.NewKubernetesPrefixSource(ctx, notifyChan),
-		prefixsource.NewConfigMapPrefixSource(ctx, notifyChan, config.ConfigMapName, config.ConfigMapNamespace),
+	prefixCollector := prefixcollector.NewExcludePrefixCollector(
+		prefixesOutputOption,
+		prefixcollector.WithNotifyChan(notifyChan),
+		prefixcollector.WithSources(
+			prefixsource.NewEnvPrefixSource(config.ExcludedPrefixes),
+			prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
+			prefixsource.NewKubernetesPrefixSource(ctx, notifyChan),
+			prefixsource.NewConfigMapPrefixSource(ctx, notifyChan, config.ConfigMapName, config.ConfigMapNamespace),
+		),
 	)
 
-	go excludePrefixService.Serve(ctx)
+	go prefixCollector.Serve(ctx)
 
 	span.Finish() // exclude main cycle run time from span timing
 	<-ctx.Done()
-}
-
-// validatedPrefixes returns list of validated via CIDR notation parsing prefixes
-func validatedPrefixes(prefixes []string) ([]string, error) {
-	var validatedPrefixes []string
-	for _, prefix := range prefixes {
-		_, _, err := net.ParseCIDR(prefix)
-		if err != nil {
-			return nil, err
-		}
-		validatedPrefixes = append(validatedPrefixes, prefix)
-	}
-
-	return validatedPrefixes, nil
-}
-
-func getPrefixesWriteFunc(config *Config, currentNamespace string) (prefixcollector.WritePrefixesFunc, error) {
-	switch config.PrefixesOutputType {
-	case fileOutputType:
-		return prefixwriter.NewFileWriter(config.OutputFilePath), nil
-	case configMapOutputType:
-		return prefixwriter.NewConfigMapWriter(config.NSMConfigMapName, currentNamespace), nil
-	default:
-		return nil, errors.New("Wrong prefixes output")
-	}
-}
-
-func getPrefixesWatchFunc(config *Config, currentNamespace string) prefixcollector.WatchPrefixesFunc {
-	if config.PrefixesOutputType == configMapOutputType {
-		return prefixwriter.NewConfigMapWatchFunc(config.NSMConfigMapName, currentNamespace)
-	}
-	return nil
 }

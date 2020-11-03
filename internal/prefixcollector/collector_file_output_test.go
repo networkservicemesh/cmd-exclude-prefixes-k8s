@@ -19,7 +19,6 @@ package prefixcollector_test
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixsource"
-	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixwriter"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"io/ioutil"
@@ -81,10 +80,9 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithFileOutput(ctx context.Contex
 	eps.Require().NoError(err)
 
 	collector := prefixcollector.NewExcludePrefixCollector(
-		notifyChan,
-		prefixwriter.NewFileWriter(prefixesFilePath),
-		nil,
-		sources...,
+		prefixcollector.WithNotifyChan(notifyChan),
+		prefixcollector.WithFileOutput(prefixesFilePath),
+		prefixcollector.WithSources(sources...),
 	)
 
 	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*500)

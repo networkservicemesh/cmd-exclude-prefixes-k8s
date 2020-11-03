@@ -14,13 +14,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package prefixwriter provides excluded prefixes writer funcs
-package prefixwriter
+package prefixcollector
 
 import (
-	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+	"io/ioutil"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -33,14 +32,33 @@ import (
 )
 
 const (
-	configMapKey = "excluded_prefixes.yaml"
+	configMapKey          = "excluded_prefixes.yaml"
+	outputFilePermissions = 0600
 )
 
-// NewConfigMapWriter - creates k8s config map WritePrefixesFunc
-func NewConfigMapWriter(configMapName, configMapNamespace string) prefixcollector.WritePrefixesFunc {
+// fileWriter - creates file writePrefixesFunc
+func fileWriter(filePath string) writePrefixesFunc {
 	return func(ctx context.Context, newPrefixes []string) {
-		configMapInterface := prefixcollector.
-			KubernetesInterface(ctx).
+		span := spanhelper.FromContext(ctx, "Update excluded prefixes file")
+		defer span.Finish()
+
+		data, err := utils.PrefixesToYaml(newPrefixes)
+		if err != nil {
+			span.Logger().Errorf("Can not create marshal prefixes, err: %v", err.Error())
+			return
+		}
+
+		err = ioutil.WriteFile(filePath, data, outputFilePermissions)
+		if err != nil {
+			span.Logger().Fatalf("Unable to write into file: %v", err.Error())
+		}
+	}
+}
+
+// configMapWriter - creates k8s config map writePrefixesFunc
+func configMapWriter(configMapName, configMapNamespace string) writePrefixesFunc {
+	return func(ctx context.Context, newPrefixes []string) {
+		configMapInterface := KubernetesInterface(ctx).
 			CoreV1().
 			ConfigMaps(configMapNamespace)
 
@@ -60,11 +78,10 @@ func NewConfigMapWriter(configMapName, configMapNamespace string) prefixcollecto
 	}
 }
 
-// NewConfigMapWatchFunc - creates WatchPrefixesFunc, that keep track of prefixes k8s config map external changes
-func NewConfigMapWatchFunc(configMapName, configMapNamespace string) prefixcollector.WatchPrefixesFunc {
+// configMapWatchFunc - creates watchPrefixesFunc, that keep track of prefixes k8s config map external changes
+func configMapWatchFunc(configMapName, configMapNamespace string) watchPrefixesFunc {
 	return func(ctx context.Context, previousPrefixes *utils.SynchronizedPrefixesContainer) {
-		configMapInterface := prefixcollector.
-			KubernetesInterface(ctx).
+		configMapInterface := KubernetesInterface(ctx).
 			CoreV1().
 			ConfigMaps(configMapNamespace)
 

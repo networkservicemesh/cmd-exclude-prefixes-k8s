@@ -19,7 +19,6 @@ package prefixcollector_test
 import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixsource"
-	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixwriter"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"errors"
@@ -214,10 +213,9 @@ func (eps *ExcludedPrefixesSuite) createConfigMap(ctx context.Context, namespace
 func (eps *ExcludedPrefixesSuite) testCollectorWithConfigmapOutput(ctx context.Context, notifyChan chan struct{},
 	expectedResult []string, sources []prefixcollector.PrefixSource) {
 	collector := prefixcollector.NewExcludePrefixCollector(
-		notifyChan,
-		prefixwriter.NewConfigMapWriter(nsmConfigMapName, configMapNamespace),
-		prefixwriter.NewConfigMapWatchFunc(nsmConfigMapName, configMapNamespace),
-		sources...,
+		prefixcollector.WithNotifyChan(notifyChan),
+		prefixcollector.WithConfigMapOutput(nsmConfigMapName, configMapNamespace),
+		prefixcollector.WithSources(sources...),
 	)
 
 	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*500)
