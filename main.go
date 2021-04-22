@@ -21,7 +21,10 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixsource"
 	"context"
 	"io/ioutil"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/k8s"
 
@@ -40,7 +43,15 @@ const (
 
 func main() {
 	// Capture signals to cleanup before exiting
-	ctx := signalctx.WithSignals(context.Background())
+	ctx, cancel := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		// More Linux signals here
+		syscall.SIGHUP,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+	)
+	defer cancel()
 
 	closer := jaeger.InitJaeger("prefix-service")
 	defer func() { _ = closer.Close() }()

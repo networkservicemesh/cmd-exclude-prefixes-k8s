@@ -31,11 +31,13 @@ import (
 	_ "math/big"
 	_ "net"
 	_ "os"
+	_ "os/signal"
 	_ "path/filepath"
 	_ "sigs.k8s.io/cluster-api/bootstrap/kubeadm/types/v1beta2"
 	_ "strings"
 	_ "sync"
 	_ "sync/atomic"
+	_ "syscall"
 	_ "testing"
 	_ "time"
 )
