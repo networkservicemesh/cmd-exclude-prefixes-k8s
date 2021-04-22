@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -21,7 +21,10 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixsource"
 	"context"
 	"io/ioutil"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/k8s"
 
@@ -29,7 +32,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/jaeger"
-	"github.com/networkservicemesh/sdk/pkg/tools/signalctx"
 	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
 )
 
@@ -40,7 +42,15 @@ const (
 
 func main() {
 	// Capture signals to cleanup before exiting
-	ctx := signalctx.WithSignals(context.Background())
+	ctx, cancel := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		// More Linux signals here
+		syscall.SIGHUP,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+	)
+	defer cancel()
 
 	closer := jaeger.InitJaeger("prefix-service")
 	defer func() { _ = closer.Close() }()
