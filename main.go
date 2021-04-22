@@ -32,7 +32,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/jaeger"
-	"github.com/networkservicemesh/sdk/pkg/tools/signalctx"
 	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
 )
 
