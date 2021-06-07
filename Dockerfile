@@ -20,4 +20,4 @@ CMD dlv -l :40000 --headless=true --api-version=2 test -test.v ./...
 
 FROM alpine as runtime
 COPY --from=build /bin/exclude-prefixes /bin/exclude-prefixes
-CMD /bin/exclude-prefixes
+ENTRYPOINT ["/bin/exclude-prefixes"]
