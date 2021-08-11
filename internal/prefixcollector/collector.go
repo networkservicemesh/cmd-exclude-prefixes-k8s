@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -18,14 +18,14 @@
 package prefixcollector
 
 import (
-	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 
-	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
+	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
+	"cmd-exclude-prefixes-k8s/internal/utils"
 )
 
 const defaultPrefixesFilePath = "/var/lib/networkservicemesh/config/excluded_prefixes.yaml"
@@ -138,9 +138,9 @@ func (epc *ExcludedPrefixCollector) updateExcludedPrefixes(ctx context.Context) 
 		return
 	}
 
-	span := spanhelper.FromContext(ctx, "Update excluded prefixes")
+	log.FromContext(ctx).Infof("Update excluded prefixes")
 
 	epc.previousPrefixes.Store(newPrefixes)
 	epc.writeFunc(ctx, newPrefixes)
-	span.Logger().Infof("Excluded prefixes were successfully updated: %v", newPrefixes)
+	log.FromContext(ctx).Infof("Excluded prefixes were successfully updated: %v", newPrefixes)
 }

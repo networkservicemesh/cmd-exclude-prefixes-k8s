@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -17,12 +17,13 @@
 package prefixsource
 
 import (
-	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
-	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"strings"
 
-	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
+	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
+	"cmd-exclude-prefixes-k8s/internal/utils"
+
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 
 	apiV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,7 +47,6 @@ type KubeAdmPrefixSource struct {
 	prefixes           *utils.SynchronizedPrefixesContainer
 	ctx                context.Context
 	notify             chan<- struct{}
-	span               spanhelper.SpanHelper
 }
 
 // Prefixes returns prefixes from source
@@ -70,9 +70,8 @@ func NewKubeAdmPrefixSource(ctx context.Context, notify chan<- struct{}) *KubeAd
 }
 
 func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
-	kaps.span = spanhelper.FromContext(kaps.ctx, "Watch kubeadm configMap")
-	defer kaps.span.Finish()
-	logger := kaps.span.Logger()
+	logger := log.FromContext(kaps.ctx)
+	logger.Infof("Watch kubeadm configMap")
 
 	kaps.checkCurrentConfigMap()
 	configMapWatch, err := kaps.configMapInterface.Watch(kaps.ctx, metav1.ListOptions{})
@@ -114,7 +113,7 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 
 func (kaps *KubeAdmPrefixSource) checkCurrentConfigMap() {
 	configMap, err := kaps.configMapInterface.Get(kaps.ctx, KubeName, metav1.GetOptions{})
-	logger := kaps.span.Logger()
+	logger := log.FromContext(kaps.ctx)
 
 	if err != nil {
 		logger.Errorf("Error getting KubeAdm config map : %v", err)
@@ -127,7 +126,7 @@ func (kaps *KubeAdmPrefixSource) checkCurrentConfigMap() {
 }
 
 func (kaps *KubeAdmPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.ConfigMap) error {
-	logger := kaps.span.Logger()
+	logger := log.FromContext(kaps.ctx)
 
 	clusterConfiguration := &v1beta2.ClusterConfiguration{}
 	err := yaml.NewYAMLOrJSONDecoder(

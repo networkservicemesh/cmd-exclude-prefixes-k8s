@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -17,14 +17,15 @@
 package prefixsource
 
 import (
-	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
-	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"net"
 
-	"k8s.io/client-go/kubernetes"
+	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
+	"cmd-exclude-prefixes-k8s/internal/utils"
 
-	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
+
+	"k8s.io/client-go/kubernetes"
 )
 
 // KubernetesPrefixSource is excluded prefix source, which get prefixes
@@ -58,18 +59,18 @@ func NewKubernetesPrefixSource(ctx context.Context, notify chan<- struct{}) *Kub
 }
 
 func (kps *KubernetesPrefixSource) watchSubnets(clientSet kubernetes.Interface) {
-	span := spanhelper.FromContext(kps.ctx, "Watch k8s subnets")
-	defer span.Finish()
+	logger := log.FromContext(kps.ctx)
+	logger.Infof("Watch k8s subnets")
 
 	podChan, err := watchPodCIDR(kps.ctx, clientSet)
 	if err != nil {
-		span.Logger().Error(err)
+		logger.Error(err)
 		return
 	}
 
 	serviceChan, err := watchServiceIPAddr(kps.ctx, clientSet)
 	if err != nil {
-		span.Logger().Error(err)
+		logger.Error(err)
 		return
 	}
 

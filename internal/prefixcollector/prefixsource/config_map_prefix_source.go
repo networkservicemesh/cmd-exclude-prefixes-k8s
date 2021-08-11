@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -18,14 +18,16 @@
 package prefixsource
 
 import (
-	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
-	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 
-	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
+	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
+	"cmd-exclude-prefixes-k8s/internal/utils"
+
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+
 	apiV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -42,7 +44,6 @@ type ConfigMapPrefixSource struct {
 	prefixes           *utils.SynchronizedPrefixesContainer
 	ctx                context.Context
 	notify             chan<- struct{}
-	span               spanhelper.SpanHelper
 }
 
 // NewConfigMapPrefixSource creates ConfigMapPrefixSource
@@ -68,9 +69,8 @@ func (cmps *ConfigMapPrefixSource) Prefixes() []string {
 }
 
 func (cmps *ConfigMapPrefixSource) watchConfigMap() {
-	cmps.span = spanhelper.FromContext(cmps.ctx, "Watch kubeadm configMap")
-	defer cmps.span.Finish()
-	logger := cmps.span.Logger()
+	logger := log.FromContext(cmps.ctx)
+	logger.Infof("Watch kubeadm configMap")
 
 	cmps.checkCurrentConfigMap()
 	configMapWatch, err := cmps.configMapInterface.Watch(cmps.ctx, metav1.ListOptions{})
@@ -111,7 +111,7 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 }
 
 func (cmps *ConfigMapPrefixSource) checkCurrentConfigMap() {
-	logger := cmps.span.Logger()
+	logger := log.FromContext(cmps.ctx)
 
 	configMap, err := cmps.configMapInterface.Get(cmps.ctx, cmps.configMapName, metav1.GetOptions{})
 	if err != nil {
@@ -125,7 +125,7 @@ func (cmps *ConfigMapPrefixSource) checkCurrentConfigMap() {
 }
 
 func (cmps *ConfigMapPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.ConfigMap) error {
-	logger := cmps.span.Logger()
+	logger := log.FromContext(cmps.ctx)
 
 	prefixesField, ok := configMap.Data[configMapPrefixesKey]
 	if !ok {
