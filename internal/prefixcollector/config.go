@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -37,6 +37,7 @@ type Config struct {
 	NSMConfigMapName   string   `default:"nsm-config" desc:"Name of nsm config map" split_words:"true"`
 	OutputFilePath     string   `default:"/var/lib/networkservicemesh/config/excluded_prefixes.yaml" desc:"Path of output prefixes file" split_words:"true"`
 	PrefixesOutputType string   `default:"file" desc:"Where to write excluded prefixes" split_words:"true"`
+	LogLevel           string   `default:"INFO" desc:"Log level" split_words:"true"`
 }
 
 // Validate - validates config. Checks PrefixesOutputType and every CIDR from config.ExcludedPrefixes.

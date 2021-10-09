@@ -29,6 +29,7 @@ import (
 	"github.com/networkservicemesh/sdk-k8s/pkg/k8s"
 
 	"github.com/kelseyhightower/envconfig"
+	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/jaeger"
@@ -69,6 +70,12 @@ func main() {
 	if err := config.Validate(); err != nil {
 		span.Logger().Fatalf("Error validating Config from env: %v", err)
 	}
+
+	level, err := logrus.ParseLevel(config.LogLevel)
+	if err != nil {
+		logrus.Fatalf("invalid log level %s", config.LogLevel)
+	}
+	logrus.SetLevel(level)
 
 	span.Logger().Info("Building Kubernetes clientSet...")
 	clientSetConfig, err := k8s.NewClientSetConfig()
