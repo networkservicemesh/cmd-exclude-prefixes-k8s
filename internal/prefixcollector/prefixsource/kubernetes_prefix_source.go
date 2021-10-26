@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -24,7 +24,7 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 )
 
 // KubernetesPrefixSource is excluded prefix source, which get prefixes
@@ -58,18 +58,15 @@ func NewKubernetesPrefixSource(ctx context.Context, notify chan<- struct{}) *Kub
 }
 
 func (kps *KubernetesPrefixSource) watchSubnets(clientSet kubernetes.Interface) {
-	span := spanhelper.FromContext(kps.ctx, "Watch k8s subnets")
-	defer span.Finish()
-
 	podChan, err := watchPodCIDR(kps.ctx, clientSet)
 	if err != nil {
-		span.Logger().Error(err)
+		log.FromContext(kps.ctx).Error(err)
 		return
 	}
 
 	serviceChan, err := watchServiceIPAddr(kps.ctx, clientSet)
 	if err != nil {
-		span.Logger().Error(err)
+		log.FromContext(kps.ctx).Error(err)
 		return
 	}
 

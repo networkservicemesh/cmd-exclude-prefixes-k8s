@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -22,14 +22,14 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 
-	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
-
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	apiV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
+
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 )
 
 const configMapPrefixesKey = "excluded_prefixes.yaml"
@@ -42,7 +42,6 @@ type ConfigMapPrefixSource struct {
 	prefixes           *utils.SynchronizedPrefixesContainer
 	ctx                context.Context
 	notify             chan<- struct{}
-	span               spanhelper.SpanHelper
 }
 
 // NewConfigMapPrefixSource creates ConfigMapPrefixSource
@@ -68,14 +67,10 @@ func (cmps *ConfigMapPrefixSource) Prefixes() []string {
 }
 
 func (cmps *ConfigMapPrefixSource) watchConfigMap() {
-	cmps.span = spanhelper.FromContext(cmps.ctx, "Watch kubeadm configMap")
-	defer cmps.span.Finish()
-	logger := cmps.span.Logger()
-
 	cmps.checkCurrentConfigMap()
 	configMapWatch, err := cmps.configMapInterface.Watch(cmps.ctx, metav1.ListOptions{})
 	if err != nil {
-		logger.Errorf("Error creating config map watch: %v", err)
+		log.FromContext(cmps.ctx).Errorf("Error creating config map watch: %v", err)
 		return
 	}
 
@@ -104,18 +99,16 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 			}
 
 			if err = cmps.setPrefixesFromConfigMap(configMap); err != nil {
-				logger.Error(err)
+				log.FromContext(cmps.ctx).Error(err)
 			}
 		}
 	}
 }
 
 func (cmps *ConfigMapPrefixSource) checkCurrentConfigMap() {
-	logger := cmps.span.Logger()
-
 	configMap, err := cmps.configMapInterface.Get(cmps.ctx, cmps.configMapName, metav1.GetOptions{})
 	if err != nil {
-		logger.Errorf("Error getting config map : %v", err)
+		log.FromContext(cmps.ctx).Errorf("Error getting config map : %v", err)
 		return
 	}
 
@@ -125,8 +118,6 @@ func (cmps *ConfigMapPrefixSource) checkCurrentConfigMap() {
 }
 
 func (cmps *ConfigMapPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.ConfigMap) error {
-	logger := cmps.span.Logger()
-
 	prefixesField, ok := configMap.Data[configMapPrefixesKey]
 	if !ok {
 		return nil
@@ -138,7 +129,7 @@ func (cmps *ConfigMapPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Con
 	}
 	cmps.prefixes.Store(prefixes)
 	cmps.notify <- struct{}{}
-	logger.Infof("Prefixes sent from config map source: %v", prefixes)
+	log.FromContext(cmps.ctx).Infof("Prefixes sent from config map source: %v", prefixes)
 
 	return nil
 }
