@@ -31,13 +31,15 @@ const (
 
 // Config - configuration for cmd-exclude-prefixes-k8s
 type Config struct {
-	ExcludedPrefixes   []string `desc:"List of excluded prefixes" split_words:"true"`
-	ConfigMapNamespace string   `default:"default" desc:"Namespace of user config map" split_words:"true"`
-	ConfigMapName      string   `default:"excluded-prefixes-config" desc:"Name of user config map" split_words:"true"`
-	NSMConfigMapName   string   `default:"nsm-config" desc:"Name of nsm config map" split_words:"true"`
-	OutputFilePath     string   `default:"/var/lib/networkservicemesh/config/excluded_prefixes.yaml" desc:"Path of output prefixes file" split_words:"true"`
-	PrefixesOutputType string   `default:"file" desc:"Where to write excluded prefixes" split_words:"true"`
-	LogLevel           string   `default:"INFO" desc:"Log level" split_words:"true"`
+	ExcludedPrefixes    []string `desc:"List of excluded prefixes" split_words:"true"`
+	ConfigMapNamespace  string   `default:"default" desc:"Namespace of user config map" split_words:"true"`
+	ConfigMapName       string   `default:"excluded-prefixes-config" desc:"Name of user config map" split_words:"true"`
+	ConfigMapKey        string   `default:"excluded_prefixes_input.yaml" desc:"key in the input configmap by which we retrieve data('filename' in data section in configmap specification yaml file)" split_words:"true"`
+	OutputConfigMapName string   `default:"nsm-config" desc:"Name of nsm config map" split_words:"true"`
+	OutputConfigMapKey  string   `default:"excluded_prefixes_output.yaml" desc:"key in the output configmap by which we retrieve data('filename' in data section in configmap specification yaml file)" split_words:"true"`
+	OutputFilePath      string   `default:"/var/lib/networkservicemesh/config/excluded_prefixes.yaml" desc:"Path of output prefixes file" split_words:"true"`
+	PrefixesOutputType  string   `default:"file" desc:"Where to write excluded prefixes" split_words:"true"`
+	LogLevel            string   `default:"INFO" desc:"Log level" split_words:"true"`
 }
 
 // Validate - validates config. Checks PrefixesOutputType and every CIDR from config.ExcludedPrefixes.

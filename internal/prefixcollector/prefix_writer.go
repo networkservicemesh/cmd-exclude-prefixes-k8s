@@ -31,7 +31,6 @@ import (
 )
 
 const (
-	configMapKey          = "excluded_prefixes.yaml"
 	outputFilePermissions = 0600
 )
 
@@ -54,7 +53,7 @@ func fileWriter(filePath string) writePrefixesFunc {
 }
 
 // configMapWriter - creates k8s config map writePrefixesFunc
-func configMapWriter(configMapName, configMapNamespace string) writePrefixesFunc {
+func configMapWriter(configMapName, configMapNamespace, configMapKey string) writePrefixesFunc {
 	return func(ctx context.Context, newPrefixes []string) {
 		configMapInterface := KubernetesInterface(ctx).
 			CoreV1().
@@ -69,14 +68,15 @@ func configMapWriter(configMapName, configMapNamespace string) writePrefixesFunc
 			return
 		}
 
-		if err := updateConfigMap(ctx, newPrefixes, configMap, configMapInterface); err != nil {
+		if err := updateConfigMap(ctx, newPrefixes, configMap, configMapInterface, configMapKey); err != nil {
 			log.FromContext(ctx).Error(err)
 		}
 	}
 }
 
-// configMapWatchFunc - creates watchPrefixesFunc, that keep track of prefixes k8s config map external changes
-func configMapWatchFunc(configMapName, configMapNamespace string) watchPrefixesFunc {
+// configMapWatchFunc - creates watchPrefixesFunc, that keep track of prefixes k8s config map external changes.
+// Prevents output config map changes - if change occurs restores it to it's previous state
+func configMapWatchFunc(configMapName, configMapNamespace, configMapKey string) watchPrefixesFunc {
 	return func(ctx context.Context, previousPrefixes *utils.SynchronizedPrefixesContainer) {
 		configMapInterface := KubernetesInterface(ctx).
 			CoreV1().
@@ -116,7 +116,7 @@ func configMapWatchFunc(configMapName, configMapNamespace string) watchPrefixesF
 					prefixes, err := utils.YamlToPrefixes([]byte(configMap.Data[configMapKey]))
 					if err != nil || !utils.UnorderedSlicesEquals(prefixes, previousPrefixes.Load()) {
 						log.FromContext(ctx).Warn("Nsm configmap excluded prefixes field external change, restoring last state")
-						if err := updateConfigMap(ctx, previousPrefixes.Load(), configMap, configMapInterface); err != nil {
+						if err := updateConfigMap(ctx, previousPrefixes.Load(), configMap, configMapInterface, configMapKey); err != nil {
 							log.FromContext(ctx).Error(err)
 						}
 					}
@@ -127,7 +127,7 @@ func configMapWatchFunc(configMapName, configMapNamespace string) watchPrefixesF
 }
 
 func updateConfigMap(ctx context.Context, newPrefixes []string,
-	configMap *apiV1.ConfigMap, configMapInterface v1.ConfigMapInterface) error {
+	configMap *apiV1.ConfigMap, configMapInterface v1.ConfigMapInterface, configMapKey string) error {
 	data, err := utils.PrefixesToYaml(newPrefixes)
 	if err != nil {
 		return errors.Wrapf(err, "Can not create marshal prefixes")

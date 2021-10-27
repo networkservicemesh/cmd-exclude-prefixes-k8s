@@ -38,7 +38,6 @@ import (
 )
 
 const (
-	envPrefix            = "exclude_prefixes_k8s"
 	currentNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 )
 
@@ -61,10 +60,10 @@ func main() {
 
 	// Get clientSetConfig from environment
 	config := &prefixcollector.Config{}
-	if err := envconfig.Usage(envPrefix, config); err != nil {
+	if err := envconfig.Usage("nsm", config); err != nil {
 		log.FromContext(ctx).Fatal(err)
 	}
-	if err := envconfig.Process(envPrefix, config); err != nil {
+	if err := envconfig.Process("nsm", config); err != nil {
 		log.FromContext(ctx).Fatalf("Error processing clientSetConfig from env: %v", err)
 	}
 	if err := config.Validate(); err != nil {
@@ -99,7 +98,7 @@ func main() {
 			log.FromContext(ctx).Fatalf("Error reading namespace from secret: %v", ioErr)
 		}
 		currentNamespace := strings.TrimSpace(string(currentNamespaceBytes))
-		prefixesOutputOption = prefixcollector.WithConfigMapOutput(config.NSMConfigMapName, currentNamespace)
+		prefixesOutputOption = prefixcollector.WithConfigMapOutput(config.OutputConfigMapName, currentNamespace, config.OutputConfigMapKey)
 	}
 
 	if err != nil {
@@ -114,7 +113,7 @@ func main() {
 			prefixsource.NewEnvPrefixSource(config.ExcludedPrefixes),
 			prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
 			prefixsource.NewKubernetesPrefixSource(ctx, notifyChan),
-			prefixsource.NewConfigMapPrefixSource(ctx, notifyChan, config.ConfigMapName, config.ConfigMapNamespace),
+			prefixsource.NewConfigMapPrefixSource(ctx, notifyChan, config.ConfigMapName, config.ConfigMapNamespace, config.ConfigMapKey),
 		),
 	)
 

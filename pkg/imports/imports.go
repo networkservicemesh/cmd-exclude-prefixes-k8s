@@ -10,6 +10,8 @@ import (
 	_ "github.com/kelseyhightower/envconfig"
 	_ "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s"
 	_ "github.com/networkservicemesh/sdk/pkg/tools/jaeger"
+	_ "github.com/networkservicemesh/sdk/pkg/tools/log"
+	_ "github.com/networkservicemesh/sdk/pkg/tools/log/logruslogger"
 	_ "github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 	_ "github.com/onsi/gomega"
 	_ "github.com/pkg/errors"

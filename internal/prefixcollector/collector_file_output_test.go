@@ -67,6 +67,7 @@ func (eps *ExcludedPrefixesSuite) TestAllSourcesWithFileOutput() {
 			notifyChan,
 			userConfigMapName,
 			configMapNamespace,
+			userConfigMapKey,
 		),
 	}
 

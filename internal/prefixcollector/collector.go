@@ -62,10 +62,10 @@ func WithFileOutput(outputFilePath string) Option {
 }
 
 // WithConfigMapOutput is ExcludedPrefixCollector option, which sets configMap output
-func WithConfigMapOutput(name, namespace string) Option {
+func WithConfigMapOutput(name, namespace, configMapKey string) Option {
 	return func(collector *ExcludedPrefixCollector) {
-		collector.writeFunc = configMapWriter(name, namespace)
-		collector.watchFunc = configMapWatchFunc(name, namespace)
+		collector.writeFunc = configMapWriter(name, namespace, configMapKey)
+		collector.watchFunc = configMapWatchFunc(name, namespace, configMapKey)
 	}
 }
 

@@ -32,12 +32,11 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/tools/log"
 )
 
-const configMapPrefixesKey = "excluded_prefixes.yaml"
-
 // ConfigMapPrefixSource is Kubernetes ConfigMap excluded prefix source
 type ConfigMapPrefixSource struct {
 	configMapName      string
 	configMapNameSpace string
+	configMapKey       string
 	configMapInterface v1.ConfigMapInterface
 	prefixes           *utils.SynchronizedPrefixesContainer
 	ctx                context.Context
@@ -45,12 +44,13 @@ type ConfigMapPrefixSource struct {
 }
 
 // NewConfigMapPrefixSource creates ConfigMapPrefixSource
-func NewConfigMapPrefixSource(ctx context.Context, notify chan<- struct{}, name, namespace string) *ConfigMapPrefixSource {
+func NewConfigMapPrefixSource(ctx context.Context, notify chan<- struct{}, name, namespace, configMapKey string) *ConfigMapPrefixSource {
 	clientSet := prefixcollector.KubernetesInterface(ctx)
 	configMapInterface := clientSet.CoreV1().ConfigMaps(namespace)
 	cmps := ConfigMapPrefixSource{
 		configMapName:      name,
 		configMapNameSpace: namespace,
+		configMapKey:       configMapKey,
 		configMapInterface: configMapInterface,
 		ctx:                ctx,
 		notify:             notify,
@@ -118,7 +118,7 @@ func (cmps *ConfigMapPrefixSource) checkCurrentConfigMap() {
 }
 
 func (cmps *ConfigMapPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.ConfigMap) error {
-	prefixesField, ok := configMap.Data[configMapPrefixesKey]
+	prefixesField, ok := configMap.Data[cmps.configMapKey]
 	if !ok {
 		return nil
 	}
