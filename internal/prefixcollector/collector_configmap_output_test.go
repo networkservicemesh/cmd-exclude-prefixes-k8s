@@ -22,6 +22,7 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
@@ -152,12 +153,7 @@ func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
 	eps.testCollectorWithConfigmapOutput(ctx, notifyChan, expectedResult, sources)
 }
 
-// todo - change test later
-// totally unstable test: when update comes from different sources councurrently it's not always updated,
-// because output configmap is watched for changes and restores prevous state when someone else trying to modify it
 func (eps *ExcludedPrefixesSuite) TestAllSources() {
-	eps.Suite.T().Skip("test doesn't consider concurrency")
-
 	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
 	expectedResult := []string{
 		"10.244.0.0/16",
@@ -229,7 +225,7 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithConfigmapOutput(ctx context.C
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
-	errCh := eps.watchConfigMap(ctx, len(sources))
+	errCh := eps.watchConfigMap(ctx, len(sources)+2)
 
 	go collector.Serve(ctx)
 
@@ -270,7 +266,7 @@ func (eps *ExcludedPrefixesSuite) watchConfigMap(ctx context.Context, maxModifyC
 
 				if configMap.Name == nsmConfigMapName && (event.Type == watch.Added || event.Type == watch.Modified) {
 					modifyCount++
-					print(modifyCount)
+					fmt.Printf("event count : %v\n", modifyCount)
 					if modifyCount == maxModifyCount {
 						close(errorCh)
 						return
