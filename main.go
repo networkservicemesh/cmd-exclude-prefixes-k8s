@@ -26,18 +26,18 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/networkservicemesh/sdk-k8s/pkg/k8s"
+	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s"
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/jaeger"
-	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
+	"github.com/networkservicemesh/sdk/pkg/tools/log/logruslogger"
 )
 
 const (
-	envPrefix            = "exclude_prefixes_k8s"
 	currentNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 )
 
@@ -53,22 +53,21 @@ func main() {
 	)
 	defer cancel()
 
-	closer := jaeger.InitJaeger("prefix-service")
+	closer := jaeger.InitJaeger(ctx, "prefix-service")
 	defer func() { _ = closer.Close() }()
-
-	span := spanhelper.FromContext(context.Background(), "Start prefix service")
-	defer span.Finish()
+	ctx = log.WithFields(ctx, map[string]interface{}{"cmd": os.Args[:1]})
+	ctx = log.WithLog(ctx, logruslogger.New(ctx))
 
 	// Get clientSetConfig from environment
 	config := &prefixcollector.Config{}
-	if err := envconfig.Usage(envPrefix, config); err != nil {
-		span.Logger().Fatal(err)
+	if err := envconfig.Usage("nsm", config); err != nil {
+		log.FromContext(ctx).Fatal(err)
 	}
-	if err := envconfig.Process(envPrefix, config); err != nil {
-		span.Logger().Fatalf("Error processing clientSetConfig from env: %v", err)
+	if err := envconfig.Process("nsm", config); err != nil {
+		log.FromContext(ctx).Fatalf("Error processing clientSetConfig from env: %v", err)
 	}
 	if err := config.Validate(); err != nil {
-		span.Logger().Fatalf("Error validating Config from env: %v", err)
+		log.FromContext(ctx).Fatalf("Error validating Config from env: %v", err)
 	}
 
 	level, err := logrus.ParseLevel(config.LogLevel)
@@ -77,17 +76,17 @@ func main() {
 	}
 	logrus.SetLevel(level)
 
-	span.Logger().Info("Building Kubernetes clientSet...")
+	log.FromContext(ctx).Info("Building Kubernetes clientSet...")
 	clientSetConfig, err := k8s.NewClientSetConfig()
 	if err != nil {
-		span.Logger().Fatalf("Failed to build Kubernetes clientSet: %v", err)
+		log.FromContext(ctx).Fatalf("Failed to build Kubernetes clientSet: %v", err)
 	}
 
-	span.Logger().Info("Starting prefix service...")
+	log.FromContext(ctx).Info("Starting prefix service...")
 
 	clientSet, err := kubernetes.NewForConfig(clientSetConfig)
 	if err != nil {
-		span.Logger().Fatalf("Failed to build Kubernetes clientSet: %v", err)
+		log.FromContext(ctx).Fatalf("Failed to build Kubernetes clientSet: %v", err)
 	}
 
 	ctx = prefixcollector.WithKubernetesInterface(ctx, kubernetes.Interface(clientSet))
@@ -96,14 +95,14 @@ func main() {
 	if config.PrefixesOutputType == prefixcollector.ConfigMapOutputType {
 		currentNamespaceBytes, ioErr := ioutil.ReadFile(currentNamespacePath)
 		if ioErr != nil {
-			span.Logger().Fatalf("Error reading namespace from secret: %v", ioErr)
+			log.FromContext(ctx).Fatalf("Error reading namespace from secret: %v", ioErr)
 		}
 		currentNamespace := strings.TrimSpace(string(currentNamespaceBytes))
-		prefixesOutputOption = prefixcollector.WithConfigMapOutput(config.NSMConfigMapName, currentNamespace)
+		prefixesOutputOption = prefixcollector.WithConfigMapOutput(config.OutputConfigMapName, currentNamespace, config.OutputConfigMapKey)
 	}
 
 	if err != nil {
-		span.Logger().Fatal(err)
+		log.FromContext(ctx).Fatal(err)
 	}
 
 	notifyChan := make(chan struct{}, 1)
@@ -114,12 +113,11 @@ func main() {
 			prefixsource.NewEnvPrefixSource(config.ExcludedPrefixes),
 			prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
 			prefixsource.NewKubernetesPrefixSource(ctx, notifyChan),
-			prefixsource.NewConfigMapPrefixSource(ctx, notifyChan, config.ConfigMapName, config.ConfigMapNamespace),
+			prefixsource.NewConfigMapPrefixSource(ctx, notifyChan, config.ConfigMapName, config.ConfigMapNamespace, config.ConfigMapKey),
 		),
 	)
 
 	go prefixCollector.Serve(ctx)
 
-	span.Finish() // exclude main cycle run time from span timing
 	<-ctx.Done()
 }

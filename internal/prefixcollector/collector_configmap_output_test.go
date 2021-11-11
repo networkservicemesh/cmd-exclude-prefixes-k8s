@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -22,6 +22,7 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
@@ -44,6 +45,7 @@ const (
 	excludedPrefixesKey = "excluded_prefixes.yaml"
 	configMapNamespace  = "default"
 	userConfigMapName   = "test"
+	userConfigMapKey    = "excluded_prefixes_input.yaml"
 	nsmConfigMapName    = "nsm-config"
 )
 
@@ -124,6 +126,7 @@ func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
 			notifyChan,
 			userConfigMapName,
 			configMapNamespace,
+			userConfigMapKey,
 		),
 	}
 
@@ -182,6 +185,7 @@ func (eps *ExcludedPrefixesSuite) TestAllSources() {
 			notifyChan,
 			userConfigMapName,
 			configMapNamespace,
+			userConfigMapKey,
 		),
 	}
 
@@ -214,14 +218,14 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithConfigmapOutput(ctx context.C
 	expectedResult []string, sources []prefixcollector.PrefixSource) {
 	collector := prefixcollector.NewExcludePrefixCollector(
 		prefixcollector.WithNotifyChan(notifyChan),
-		prefixcollector.WithConfigMapOutput(nsmConfigMapName, configMapNamespace),
+		prefixcollector.WithConfigMapOutput(nsmConfigMapName, configMapNamespace, excludedPrefixesKey),
 		prefixcollector.WithSources(sources...),
 	)
 
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
-	errCh := eps.watchConfigMap(ctx, len(sources))
+	errCh := eps.watchConfigMap(ctx, len(sources)+2)
 
 	go collector.Serve(ctx)
 
@@ -262,7 +266,7 @@ func (eps *ExcludedPrefixesSuite) watchConfigMap(ctx context.Context, maxModifyC
 
 				if configMap.Name == nsmConfigMapName && (event.Type == watch.Added || event.Type == watch.Modified) {
 					modifyCount++
-					print(modifyCount)
+					fmt.Printf("event count : %v\n", modifyCount)
 					if modifyCount == maxModifyCount {
 						close(errorCh)
 						return

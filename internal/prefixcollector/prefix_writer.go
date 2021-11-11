@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -22,78 +22,74 @@ import (
 	"io/ioutil"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	apiV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 )
 
 const (
-	configMapKey          = "excluded_prefixes.yaml"
 	outputFilePermissions = 0600
 )
 
 // fileWriter - creates file writePrefixesFunc
 func fileWriter(filePath string) writePrefixesFunc {
 	return func(ctx context.Context, newPrefixes []string) {
-		span := spanhelper.FromContext(ctx, "Update excluded prefixes file")
-		defer span.Finish()
+		log.FromContext(ctx).Infof("Update excluded prefixes file")
 
 		data, err := utils.PrefixesToYaml(newPrefixes)
 		if err != nil {
-			span.Logger().Errorf("Can not create marshal prefixes, err: %v", err.Error())
+			log.FromContext(ctx).Errorf("Can not create marshal prefixes, err: %v", err.Error())
 			return
 		}
 
 		err = ioutil.WriteFile(filePath, data, outputFilePermissions)
 		if err != nil {
-			span.Logger().Fatalf("Unable to write into file: %v", err.Error())
+			log.FromContext(ctx).Fatalf("Unable to write into file: %v", err.Error())
 		}
 	}
 }
 
 // configMapWriter - creates k8s config map writePrefixesFunc
-func configMapWriter(configMapName, configMapNamespace string) writePrefixesFunc {
+func configMapWriter(configMapName, configMapNamespace, configMapKey string) writePrefixesFunc {
 	return func(ctx context.Context, newPrefixes []string) {
 		configMapInterface := KubernetesInterface(ctx).
 			CoreV1().
 			ConfigMaps(configMapNamespace)
 
-		span := spanhelper.FromContext(ctx, "Update excluded prefixes config map")
-		defer span.Finish()
+		log.FromContext(ctx).Infof("Update excluded prefixes config map")
 
 		configMap, err := configMapInterface.Get(ctx, configMapName, metav1.GetOptions{})
 		if err != nil {
-			span.Logger().Fatalf("Failed to get NSM ConfigMap '%s/%s': %v",
+			log.FromContext(ctx).Fatalf("Failed to get NSM ConfigMap '%s/%s': %v",
 				configMapNamespace, configMapName, err)
 			return
 		}
 
-		if err := updateConfigMap(ctx, newPrefixes, configMap, configMapInterface); err != nil {
-			span.Logger().Error(err)
+		if err := updateConfigMap(ctx, newPrefixes, configMap, configMapInterface, configMapKey); err != nil {
+			log.FromContext(ctx).Error(err)
 		}
 	}
 }
 
-// configMapWatchFunc - creates watchPrefixesFunc, that keep track of prefixes k8s config map external changes
-func configMapWatchFunc(configMapName, configMapNamespace string) watchPrefixesFunc {
+// configMapWatchFunc - creates watchPrefixesFunc, that keep track of prefixes k8s config map external changes.
+// Prevents output config map changes - if change occurs restores it to it's previous state
+func configMapWatchFunc(configMapName, configMapNamespace, configMapKey string) watchPrefixesFunc {
 	return func(ctx context.Context, previousPrefixes *utils.SynchronizedPrefixesContainer) {
 		configMapInterface := KubernetesInterface(ctx).
 			CoreV1().
 			ConfigMaps(configMapNamespace)
 
-		span := spanhelper.FromContext(ctx, "Watch NSM config map")
-		defer span.Finish()
+		log.FromContext(ctx).Infof("Watch NSM config map")
 
 		watcher, err := configMapInterface.Watch(ctx, metav1.ListOptions{})
 		if err != nil {
-			span.Logger().Fatalf("Error watching config map: %v", err)
+			log.FromContext(ctx).Fatalf("Error watching config map: %v", err)
 		}
 
-		logEntry := span.Logger().WithFields(logrus.Fields{
+		ctx = log.WithFields(ctx, map[string]interface{}{
 			"configmap-namespace": configMapNamespace,
 			"configmap-name":      configMapName,
 		})
@@ -114,14 +110,14 @@ func configMapWatchFunc(configMapName, configMapNamespace string) watchPrefixesF
 
 				switch event.Type {
 				case watch.Error:
-					logEntry.Errorf("Error during nsm configmap watch: %v", err)
+					log.FromContext(ctx).Errorf("Error during nsm configmap watch: %v", err)
 					return
 				case watch.Modified:
 					prefixes, err := utils.YamlToPrefixes([]byte(configMap.Data[configMapKey]))
 					if err != nil || !utils.UnorderedSlicesEquals(prefixes, previousPrefixes.Load()) {
-						logEntry.Warn("Nsm configmap excluded prefixes field external change, restoring last state")
-						if err := updateConfigMap(ctx, previousPrefixes.Load(), configMap, configMapInterface); err != nil {
-							span.Logger().Error(err)
+						log.FromContext(ctx).Warn("Nsm configmap excluded prefixes field external change, restoring last state")
+						if err := updateConfigMap(ctx, previousPrefixes.Load(), configMap, configMapInterface, configMapKey); err != nil {
+							log.FromContext(ctx).Error(err)
 						}
 					}
 				}
@@ -131,7 +127,7 @@ func configMapWatchFunc(configMapName, configMapNamespace string) watchPrefixesF
 }
 
 func updateConfigMap(ctx context.Context, newPrefixes []string,
-	configMap *apiV1.ConfigMap, configMapInterface v1.ConfigMapInterface) error {
+	configMap *apiV1.ConfigMap, configMapInterface v1.ConfigMapInterface, configMapKey string) error {
 	data, err := utils.PrefixesToYaml(newPrefixes)
 	if err != nil {
 		return errors.Wrapf(err, "Can not create marshal prefixes")

@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -21,10 +21,9 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 
-	"github.com/networkservicemesh/sdk/pkg/tools/spanhelper"
-
 	"github.com/sirupsen/logrus"
 
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 )
 
@@ -63,10 +62,10 @@ func WithFileOutput(outputFilePath string) Option {
 }
 
 // WithConfigMapOutput is ExcludedPrefixCollector option, which sets configMap output
-func WithConfigMapOutput(name, namespace string) Option {
+func WithConfigMapOutput(name, namespace, configMapKey string) Option {
 	return func(collector *ExcludedPrefixCollector) {
-		collector.writeFunc = configMapWriter(name, namespace)
-		collector.watchFunc = configMapWatchFunc(name, namespace)
+		collector.writeFunc = configMapWriter(name, namespace, configMapKey)
+		collector.watchFunc = configMapWatchFunc(name, namespace, configMapKey)
 	}
 }
 
@@ -138,9 +137,9 @@ func (epc *ExcludedPrefixCollector) updateExcludedPrefixes(ctx context.Context) 
 		return
 	}
 
-	span := spanhelper.FromContext(ctx, "Update excluded prefixes")
+	log.FromContext(ctx).Infof("Update excluded prefixes")
 
 	epc.previousPrefixes.Store(newPrefixes)
 	epc.writeFunc(ctx, newPrefixes)
-	span.Logger().Infof("Excluded prefixes were successfully updated: %v", newPrefixes)
+	log.FromContext(ctx).Infof("Excluded prefixes were successfully updated: %v", newPrefixes)
 }
