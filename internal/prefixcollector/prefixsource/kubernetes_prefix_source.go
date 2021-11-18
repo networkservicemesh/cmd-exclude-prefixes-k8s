@@ -60,7 +60,6 @@ func NewKubernetesPrefixSource(ctx context.Context, notify chan<- struct{}) *Kub
 func (kps *KubernetesPrefixSource) watchSubnets(clientSet kubernetes.Interface) {
 	podChan, err := watchPodCIDR(kps.ctx, clientSet)
 	if err != nil {
-		log.FromContext(kps.ctx).Error(err)
 		return
 	}
 

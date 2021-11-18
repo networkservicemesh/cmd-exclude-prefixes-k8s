@@ -21,8 +21,6 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/networkservicemesh/sdk/pkg/tools/log"
 	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
 )
@@ -127,7 +125,7 @@ func (epc *ExcludedPrefixCollector) updateExcludedPrefixes(ctx context.Context) 
 		}
 
 		if err := excludePrefixPool.ReleaseExcludedPrefixes(v.Prefixes()); err != nil {
-			logrus.Error(err)
+			log.FromContext(ctx).Errorf("Error releasing prefixes %v :%v", v.Prefixes(), err)
 			return
 		}
 	}

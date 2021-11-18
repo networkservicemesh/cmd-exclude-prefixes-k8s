@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -21,7 +21,6 @@ import (
 	"net"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,6 +28,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"math/big"
+
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 )
 
 type keyFunc func(event watch.Event) (string, error)
@@ -37,7 +38,7 @@ type subnetFunc func(event watch.Event) (*net.IPNet, error)
 func watchPodCIDR(ctx context.Context, clientset kubernetes.Interface) (<-chan *net.IPNet, error) {
 	nodeWatcher, err := clientset.CoreV1().Nodes().Watch(ctx, metav1.ListOptions{})
 	if err != nil {
-		logrus.Error(err)
+		log.FromContext(ctx).Errorf("error creating nodeWatcher: %v", err)
 		return nil, err
 	}
 
@@ -75,7 +76,7 @@ func watchPodCIDR(ctx context.Context, clientset kubernetes.Interface) (<-chan *
 func watchServiceIPAddr(ctx context.Context, cs kubernetes.Interface) (<-chan *net.IPNet, error) {
 	serviceWatcher, err := newServiceWatcher(ctx, cs)
 	if err != nil {
-		logrus.Error(err)
+		log.FromContext(ctx).Errorf("error creating serviceWatcher: %v", err)
 		return nil, err
 	}
 
@@ -198,7 +199,6 @@ func WatchSubnet(ctx context.Context, resourceWatcher watch.Interface,
 				if err != nil {
 					continue
 				}
-				logrus.Infof("Receive resource: name %v, subnet %v", key, ipNet.String())
 
 				if subnet, exist := cache[key]; exist && subnet == ipNet.String() {
 					continue
@@ -213,7 +213,6 @@ func WatchSubnet(ctx context.Context, resourceWatcher watch.Interface,
 
 				newIPNet := maxCommonPrefixSubnet(lastIPNet, ipNet)
 				if newIPNet.String() != lastIPNet.String() {
-					logrus.Infof("Subnet extended from %v to %v", lastIPNet, newIPNet)
 					lastIPNet = newIPNet
 					subnetCh <- lastIPNet
 					continue

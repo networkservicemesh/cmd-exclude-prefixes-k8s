@@ -23,7 +23,6 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	apiV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -87,6 +86,8 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 				continue
 			}
 
+			log.FromContext(cmps.ctx).Infof("Event received:%v", event)
+
 			configMap, ok := event.Object.(*apiV1.ConfigMap)
 			if !ok || configMap.Name != cmps.configMapName {
 				continue
@@ -99,7 +100,7 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 			}
 
 			if err = cmps.setPrefixesFromConfigMap(configMap); err != nil {
-				log.FromContext(cmps.ctx).Error(err)
+				log.FromContext(cmps.ctx).Errorf("Error setting prefixes from config map:%s", configMap.Name)
 			}
 		}
 	}
@@ -113,7 +114,7 @@ func (cmps *ConfigMapPrefixSource) checkCurrentConfigMap() {
 	}
 
 	if err = cmps.setPrefixesFromConfigMap(configMap); err != nil {
-		logrus.Error(err)
+		log.FromContext(cmps.ctx).Errorf("Error setting prefixes from config map:%s", configMap.Name)
 	}
 }
 

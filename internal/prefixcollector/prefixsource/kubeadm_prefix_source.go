@@ -118,7 +118,7 @@ func (kaps *KubeAdmPrefixSource) checkCurrentConfigMap() {
 	}
 
 	if err = kaps.setPrefixesFromConfigMap(configMap); err != nil {
-		log.FromContext(kaps.ctx).Error(err)
+		log.FromContext(kaps.ctx).Error("Error setting prefixes from KubeAdm config map")
 	}
 }
 
