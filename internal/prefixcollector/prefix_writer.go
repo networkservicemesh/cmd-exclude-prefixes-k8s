@@ -37,7 +37,7 @@ const (
 // fileWriter - creates file writePrefixesFunc
 func fileWriter(filePath string) writePrefixesFunc {
 	return func(ctx context.Context, newPrefixes []string) {
-		log.FromContext(ctx).Infof("Update excluded prefixes file")
+		log.FromContext(ctx).Infof("Update excluded prefixes file, newPrefixes=%v", newPrefixes)
 
 		data, err := utils.PrefixesToYaml(newPrefixes)
 		if err != nil {

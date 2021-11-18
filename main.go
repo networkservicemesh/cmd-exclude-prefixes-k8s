@@ -101,10 +101,6 @@ func main() {
 		prefixesOutputOption = prefixcollector.WithConfigMapOutput(config.OutputConfigMapName, currentNamespace, config.OutputConfigMapKey)
 	}
 
-	if err != nil {
-		log.FromContext(ctx).Fatal(err)
-	}
-
 	notifyChan := make(chan struct{}, 1)
 	prefixCollector := prefixcollector.NewExcludePrefixCollector(
 		prefixesOutputOption,
