@@ -129,6 +129,7 @@ func (kaps *KubeAdmPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Confi
 	).Decode(clusterConfiguration)
 
 	if err != nil {
+		log.FromContext(kaps.ctx).Errorf("error decoding cluster config: %v", err.Error())
 		return err
 	}
 
