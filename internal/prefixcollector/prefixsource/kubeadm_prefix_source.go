@@ -20,6 +20,7 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+	"net"
 	"strings"
 
 	apiV1 "k8s.io/api/core/v1"
@@ -129,6 +130,7 @@ func (kaps *KubeAdmPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Confi
 	).Decode(clusterConfiguration)
 
 	if err != nil {
+		log.FromContext(kaps.ctx).Errorf("error decoding cluster config: %v", err.Error())
 		return err
 	}
 
@@ -142,7 +144,13 @@ func (kaps *KubeAdmPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Confi
 		log.FromContext(kaps.ctx).Error("ClusterConfiguration.Networking.ServiceSubnet is empty")
 	}
 
-	prefixes := []string{podSubnet, serviceSubnet}
+	// store only valid prefixes
+	var prefixes []string
+	for _, p := range []string{podSubnet, serviceSubnet} {
+		if _, _, err = net.ParseCIDR(p); err == nil {
+			prefixes = append(prefixes, p)
+		}
+	}
 
 	kaps.prefixes.Store(prefixes)
 	kaps.notify <- struct{}{}
