@@ -20,7 +20,6 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"net"
 	"strings"
 
 	apiV1 "k8s.io/api/core/v1"
@@ -145,16 +144,14 @@ func (kaps *KubeAdmPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Confi
 	}
 
 	// store only valid prefixes
-	var prefixes []string
+	var trimmedPrefixes []string
 	for _, p := range []string{podSubnet, serviceSubnet} {
-		if _, _, err = net.ParseCIDR(p); err == nil {
-			prefixes = append(prefixes, p)
-		}
+		trimmedPrefixes = append(trimmedPrefixes, strings.TrimSpace(p))
 	}
 
-	kaps.prefixes.Store(prefixes)
+	kaps.prefixes.Store(trimmedPrefixes)
 	kaps.notify <- struct{}{}
-	log.FromContext(kaps.ctx).Infof("Prefixes sent from kubeadm source: %v", prefixes)
+	log.FromContext(kaps.ctx).Infof("Prefixes sent from kubeadm source: %v", trimmedPrefixes)
 
 	return nil
 }
