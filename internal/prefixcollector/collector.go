@@ -20,6 +20,7 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+	"strings"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/log"
 	"github.com/networkservicemesh/sdk/pkg/tools/prefixpool"
@@ -124,8 +125,14 @@ func (epc *ExcludedPrefixCollector) updateExcludedPrefixes(ctx context.Context) 
 			continue
 		}
 
-		if err := excludePrefixPool.ReleaseExcludedPrefixes(v.Prefixes()); err != nil {
-			log.FromContext(ctx).Errorf("Error releasing prefixes %v :%v", v.Prefixes(), err)
+		// store only valid prefixes
+		var trimmedPrefixes []string
+		for _, p := range sourcePrefixes {
+			trimmedPrefixes = append(trimmedPrefixes, strings.TrimSpace(p))
+		}
+
+		if err := excludePrefixPool.ReleaseExcludedPrefixes(trimmedPrefixes); err != nil {
+			log.FromContext(ctx).Errorf("Error releasing prefixes %v :%v", trimmedPrefixes, err)
 			return
 		}
 	}

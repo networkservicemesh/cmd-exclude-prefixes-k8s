@@ -21,7 +21,6 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"strings"
 
 	"github.com/pkg/errors"
 	apiV1 "k8s.io/api/core/v1"
@@ -129,14 +128,7 @@ func (cmps *ConfigMapPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Con
 	if err != nil {
 		return errors.Errorf("Can not unmarshal prefixes, err: %v", err.Error())
 	}
-
-	// trim possible whitespaces
-	var trimmedPrefixes []string
-	for _, p := range prefixes {
-		trimmedPrefixes = append(trimmedPrefixes, strings.TrimSpace(p))
-	}
-
-	cmps.prefixes.Store(trimmedPrefixes)
+	cmps.prefixes.Store(prefixes)
 	cmps.notify <- struct{}{}
 	log.FromContext(cmps.ctx).Infof("Prefixes sent from config map source: %v", prefixes)
 

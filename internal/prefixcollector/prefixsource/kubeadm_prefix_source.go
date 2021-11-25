@@ -143,15 +143,11 @@ func (kaps *KubeAdmPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Confi
 		log.FromContext(kaps.ctx).Error("ClusterConfiguration.Networking.ServiceSubnet is empty")
 	}
 
-	// store only valid prefixes
-	var trimmedPrefixes []string
-	for _, p := range []string{podSubnet, serviceSubnet} {
-		trimmedPrefixes = append(trimmedPrefixes, strings.TrimSpace(p))
-	}
+	prefixes := []string{podSubnet, serviceSubnet}
 
-	kaps.prefixes.Store(trimmedPrefixes)
+	kaps.prefixes.Store(prefixes)
 	kaps.notify <- struct{}{}
-	log.FromContext(kaps.ctx).Infof("Prefixes sent from kubeadm source: %v", trimmedPrefixes)
+	log.FromContext(kaps.ctx).Infof("Prefixes sent from kubeadm source: %v", prefixes)
 
 	return nil
 }
