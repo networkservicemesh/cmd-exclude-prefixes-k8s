@@ -55,8 +55,7 @@ func main() {
 
 	closer := jaeger.InitJaeger(ctx, "prefix-service")
 	defer func() { _ = closer.Close() }()
-	ctx = log.WithFields(ctx, map[string]interface{}{"cmd": os.Args[:1]})
-	ctx = log.WithLog(ctx, logruslogger.New(ctx))
+	ctx = log.WithLog(ctx, logruslogger.New(ctx, map[string]interface{}{"cmd": os.Args[:1]}))
 
 	// Get clientSetConfig from environment
 	config := &prefixcollector.Config{}
