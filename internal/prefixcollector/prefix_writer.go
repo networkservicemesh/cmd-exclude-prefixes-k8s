@@ -28,6 +28,7 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/log"
+	"github.com/networkservicemesh/sdk/pkg/tools/log/logruslogger"
 )
 
 const (
@@ -89,10 +90,10 @@ func configMapWatchFunc(configMapName, configMapNamespace, configMapKey string) 
 			log.FromContext(ctx).Fatalf("Error watching config map: %v", err)
 		}
 
-		ctx = log.WithFields(ctx, map[string]interface{}{
+		ctx = log.WithLog(ctx, logruslogger.New(ctx, map[string]interface{}{
 			"configmap-namespace": configMapNamespace,
 			"configmap-name":      configMapName,
-		})
+		}))
 
 		for {
 			select {
