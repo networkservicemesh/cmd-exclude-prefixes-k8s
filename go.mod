@@ -6,15 +6,16 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/ghodss/yaml v1.0.0
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/networkservicemesh/sdk v0.5.1-0.20220110090942-fe9702d99abd
+	github.com/networkservicemesh/sdk v0.5.1-0.20220113030144-5d3e2785cac1
 	github.com/networkservicemesh/sdk-k8s v0.0.0-20220110091528-70430c3bee99
-	github.com/onsi/gomega v1.10.1
+	github.com/onsi/gomega v1.16.0
 	github.com/pkg/errors v0.9.1
-	github.com/sirupsen/logrus v1.7.0
+	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
-	go.uber.org/goleak v1.1.10
+	go.uber.org/goleak v1.1.12
 	k8s.io/api v0.22.1
 	k8s.io/apimachinery v0.22.1
 	k8s.io/client-go v0.22.1
+	k8s.io/klog/v2 v2.40.1 // indirect
 	sigs.k8s.io/cluster-api v0.3.10
 )

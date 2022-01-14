@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Doc.ai and/or its affiliates.
+// Copyright (c) 2021-2022 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -32,9 +32,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/networkservicemesh/sdk/pkg/tools/jaeger"
 	"github.com/networkservicemesh/sdk/pkg/tools/log"
 	"github.com/networkservicemesh/sdk/pkg/tools/log/logruslogger"
+	"github.com/networkservicemesh/sdk/pkg/tools/opentelemetry"
 )
 
 const (
@@ -53,8 +53,7 @@ func main() {
 	)
 	defer cancel()
 
-	closer := jaeger.InitJaeger(ctx, "prefix-service")
-	defer func() { _ = closer.Close() }()
+	log.EnableTracing(true)
 	ctx = log.WithLog(ctx, logruslogger.New(ctx, map[string]interface{}{"cmd": os.Args[:1]}))
 
 	// Get clientSetConfig from environment
@@ -74,6 +73,19 @@ func main() {
 		logrus.Fatalf("invalid log level %s", config.LogLevel)
 	}
 	logrus.SetLevel(level)
+
+	// Configure Open Telemetry
+	if opentelemetry.IsEnabled() {
+		collectorAddress := config.OpenTelemetryEndpoint
+		spanExporter := opentelemetry.InitSpanExporter(ctx, collectorAddress)
+		metricExporter := opentelemetry.InitMetricExporter(ctx, collectorAddress)
+		o := opentelemetry.Init(ctx, spanExporter, metricExporter, "exclude-prefixes-k8s")
+		defer func() {
+			if err = o.Close(); err != nil {
+				log.FromContext(ctx).Error(err.Error())
+			}
+		}()
+	}
 
 	log.FromContext(ctx).Info("Building Kubernetes clientSet...")
 	clientSetConfig, err := k8s.NewClientSetConfig()
