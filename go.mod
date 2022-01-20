@@ -6,8 +6,8 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/ghodss/yaml v1.0.0
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/networkservicemesh/sdk v0.5.1-0.20220113030144-5d3e2785cac1
-	github.com/networkservicemesh/sdk-k8s v0.0.0-20220110091528-70430c3bee99
+	github.com/networkservicemesh/sdk v0.5.1-0.20220119093841-c6568d15f10c
+	github.com/networkservicemesh/sdk-k8s v0.0.0-20220120084602-e17b3e54e603
 	github.com/onsi/gomega v1.16.0
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.8.1
@@ -16,6 +16,5 @@ require (
 	k8s.io/api v0.22.1
 	k8s.io/apimachinery v0.22.1
 	k8s.io/client-go v0.22.1
-	k8s.io/klog/v2 v2.40.1 // indirect
 	sigs.k8s.io/cluster-api v0.3.10
 )
