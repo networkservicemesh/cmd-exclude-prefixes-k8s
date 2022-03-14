@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2022 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,14 +41,15 @@ import (
 )
 
 const (
-	configMapPath       = "./testfiles/configMap.yaml"
-	kubeConfigMapPath   = "./testfiles/kubeAdmConfigMap.yaml"
-	nsmConfigMapPath    = "./testfiles/nsmConfigMap.yaml"
-	excludedPrefixesKey = "excluded_prefixes.yaml"
-	configMapNamespace  = "default"
-	userConfigMapName   = "test"
-	userConfigMapKey    = "excluded_prefixes_input.yaml"
-	nsmConfigMapName    = "nsm-config"
+	configMapPath         = "./testfiles/configMap.yaml"
+	kubeConfigMapPath     = "./testfiles/kubeAdmConfigMap.yaml"
+	kubeConfigMapPathIPv6 = "./testfiles/kubeAdmConfigMapIPv6.yaml"
+	nsmConfigMapPath      = "./testfiles/nsmConfigMap.yaml"
+	excludedPrefixesKey   = "excluded_prefixes.yaml"
+	configMapNamespace    = "default"
+	userConfigMapName     = "test"
+	userConfigMapKey      = "excluded_prefixes_input.yaml"
+	nsmConfigMapName      = "nsm-config"
 )
 
 type dummyPrefixSource struct {
@@ -145,6 +148,28 @@ func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
 	defer cancel()
 
 	eps.createConfigMap(ctx, prefixsource.KubeNamespace, kubeConfigMapPath)
+
+	sources := []prefixcollector.PrefixSource{
+		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
+	}
+
+	eps.testCollectorWithConfigmapOutput(ctx, notifyChan, expectedResult, sources)
+}
+
+func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSourceIPv6() {
+	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
+	expectedResult := []string{
+		"10.244.0.0/16",
+		"10.96.0.0/16",
+		"fd00:10:244::/56",
+		"fd00:10:96::/112",
+	}
+
+	notifyChan := make(chan struct{}, 1)
+	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
+	defer cancel()
+
+	eps.createConfigMap(ctx, prefixsource.KubeNamespace, kubeConfigMapPathIPv6)
 
 	sources := []prefixcollector.PrefixSource{
 		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),

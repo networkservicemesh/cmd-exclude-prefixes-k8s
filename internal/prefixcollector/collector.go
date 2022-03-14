@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2022 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +22,7 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+	"net"
 	"strings"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/log"
@@ -117,7 +120,8 @@ func (epc *ExcludedPrefixCollector) Serve(ctx context.Context) {
 }
 
 func (epc *ExcludedPrefixCollector) updateExcludedPrefixes(ctx context.Context) {
-	excludePrefixPool, _ := prefixpool.New()
+	excludePrefixPoolV4, _ := prefixpool.New()
+	excludePrefixPoolV6, _ := prefixpool.New()
 
 	for _, v := range epc.sources {
 		sourcePrefixes := v.Prefixes()
@@ -126,18 +130,39 @@ func (epc *ExcludedPrefixCollector) updateExcludedPrefixes(ctx context.Context) 
 		}
 
 		// store only valid prefixes
-		var trimmedPrefixes []string
+		var prefixesV4 []string
+		var prefixesV6 []string
 		for _, p := range sourcePrefixes {
-			trimmedPrefixes = append(trimmedPrefixes, strings.TrimSpace(p))
+			prefix := strings.TrimSpace(p)
+			ip, _, err := net.ParseCIDR(prefix)
+			if err != nil {
+				log.FromContext(ctx).Errorf("Invalid CIDR %v :%v", prefix, err)
+				continue
+			}
+			if ip.To4() != nil {
+				prefixesV4 = append(prefixesV4, prefix)
+			} else {
+				prefixesV6 = append(prefixesV6, prefix)
+			}
 		}
 
-		if err := excludePrefixPool.ReleaseExcludedPrefixes(trimmedPrefixes); err != nil {
-			log.FromContext(ctx).Errorf("Error releasing prefixes %v :%v", trimmedPrefixes, err)
-			return
+		if len(prefixesV4) > 0 {
+			if err := excludePrefixPoolV4.ReleaseExcludedPrefixes(prefixesV4); err != nil {
+				log.FromContext(ctx).Errorf("Error releasing IPv4 prefixes %v :%v", prefixesV4, err)
+				return
+			}
+		}
+		if len(prefixesV6) > 0 {
+			if err := excludePrefixPoolV6.ReleaseExcludedPrefixes(prefixesV6); err != nil {
+				log.FromContext(ctx).Errorf("Error releasing IPv6 prefixes %v :%v", prefixesV6, err)
+				return
+			}
 		}
 	}
 
-	newPrefixes := excludePrefixPool.GetPrefixes()
+	newPrefixesV4 := excludePrefixPoolV4.GetPrefixes()
+	newPrefixesV6 := excludePrefixPoolV6.GetPrefixes()
+	newPrefixes := append(newPrefixesV4, newPrefixesV6...)
 	if utils.UnorderedSlicesEquals(newPrefixes, epc.previousPrefixes.Load()) {
 		return
 	}
