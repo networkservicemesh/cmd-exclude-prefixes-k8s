@@ -20,6 +20,7 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
+	"net"
 	"strings"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/log"
@@ -116,8 +117,23 @@ func (epc *ExcludedPrefixCollector) Serve(ctx context.Context) {
 	}
 }
 
+// splitPrefix splits single prefix string into list of prefixes treating the input as comma separated.
+// When cluster supports both IPv4 and IPv6 we can receive combined addresses e.g. "10.244.0.0/16,fd00:10:244::/56"
+func splitPrefix(prefix string) []string {
+	raws := strings.Split(prefix, ",")
+	parts := make([]string, 0, len(raws))
+	for _, raw := range raws {
+		part := strings.TrimSpace(raw)
+		if len(part) > 0 {
+			parts = append(parts, part)
+		}
+	}
+	return parts
+}
+
 func (epc *ExcludedPrefixCollector) updateExcludedPrefixes(ctx context.Context) {
-	excludePrefixPool, _ := prefixpool.New()
+	excludePrefixPoolV4, _ := prefixpool.New()
+	excludePrefixPoolV6, _ := prefixpool.New()
 
 	for _, v := range epc.sources {
 		sourcePrefixes := v.Prefixes()
@@ -126,18 +142,42 @@ func (epc *ExcludedPrefixCollector) updateExcludedPrefixes(ctx context.Context) 
 		}
 
 		// store only valid prefixes
-		var trimmedPrefixes []string
+		var prefixesV4 []string
+		var prefixesV6 []string
 		for _, p := range sourcePrefixes {
-			trimmedPrefixes = append(trimmedPrefixes, strings.TrimSpace(p))
+			for _, prefix := range splitPrefix(p) {
+				ip, _, err := net.ParseCIDR(prefix)
+				if err != nil {
+					log.FromContext(ctx).Errorf("Invalid CIDR %v :%v", prefix, err)
+					continue
+				}
+				if ip.To4() != nil {
+					prefixesV4 = append(prefixesV4, prefix)
+				} else {
+					prefixesV6 = append(prefixesV6, prefix)
+				}
+			}
 		}
 
-		if err := excludePrefixPool.ReleaseExcludedPrefixes(trimmedPrefixes); err != nil {
-			log.FromContext(ctx).Errorf("Error releasing prefixes %v :%v", trimmedPrefixes, err)
-			return
+		if len(prefixesV4) > 0 {
+			if err := excludePrefixPoolV4.ReleaseExcludedPrefixes(prefixesV4); err != nil {
+				log.FromContext(ctx).Errorf("Error releasing IPv4 prefixes %v :%v", prefixesV4, err)
+				return
+			}
+		}
+		if len(prefixesV6) > 0 {
+			if err := excludePrefixPoolV6.ReleaseExcludedPrefixes(prefixesV6); err != nil {
+				log.FromContext(ctx).Errorf("Error releasing IPv6 prefixes %v :%v", prefixesV6, err)
+				return
+			}
 		}
 	}
 
-	newPrefixes := excludePrefixPool.GetPrefixes()
+	newPrefixesV4 := excludePrefixPoolV4.GetPrefixes()
+	newPrefixesV6 := excludePrefixPoolV6.GetPrefixes()
+	newPrefixes := make([]string, 0, len(newPrefixesV4)+len(newPrefixesV6))
+	newPrefixes = append(newPrefixes, newPrefixesV4...)
+	newPrefixes = append(newPrefixes, newPrefixesV6...)
 	if utils.UnorderedSlicesEquals(newPrefixes, epc.previousPrefixes.Load()) {
 		return
 	}
