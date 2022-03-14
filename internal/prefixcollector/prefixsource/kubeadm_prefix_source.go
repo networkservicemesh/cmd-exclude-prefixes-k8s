@@ -122,6 +122,20 @@ func (kaps *KubeAdmPrefixSource) checkCurrentConfigMap() {
 	}
 }
 
+// splitPrefix splits single prefix string into list of prefixes treating the input as comma separated.
+// When cluster supports both IPv4 and IPv6 we can receive combined addresses e.g. "10.244.0.0/16,fd00:10:244::/56"
+func splitPrefix(prefix string) []string {
+	raws := strings.Split(prefix, ",")
+	var parts []string
+	for _, raw := range raws {
+		part := strings.TrimSpace(raw)
+		if len(part) > 0 {
+			parts = append(parts, part)
+		}
+	}
+	return parts
+}
+
 func (kaps *KubeAdmPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.ConfigMap) error {
 	clusterConfiguration := &v1beta2.ClusterConfiguration{}
 	err := yaml.NewYAMLOrJSONDecoder(
@@ -143,7 +157,7 @@ func (kaps *KubeAdmPrefixSource) setPrefixesFromConfigMap(configMap *apiV1.Confi
 		log.FromContext(kaps.ctx).Error("ClusterConfiguration.Networking.ServiceSubnet is empty")
 	}
 
-	prefixes := []string{podSubnet, serviceSubnet}
+	prefixes := append(splitPrefix(podSubnet), splitPrefix(serviceSubnet)...)
 
 	kaps.prefixes.Store(prefixes)
 	kaps.notify <- struct{}{}

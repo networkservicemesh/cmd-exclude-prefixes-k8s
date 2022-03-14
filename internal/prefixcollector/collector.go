@@ -119,20 +119,6 @@ func (epc *ExcludedPrefixCollector) Serve(ctx context.Context) {
 	}
 }
 
-// splitPrefix splits single prefix string into list of prefixes treating the input as comma separated.
-// When cluster supports both IPv4 and IPv6 we can receive combined addresses e.g. "10.244.0.0/16,fd00:10:244::/56"
-func splitPrefix(prefix string) []string {
-	raws := strings.Split(prefix, ",")
-	parts := make([]string, 0, len(raws))
-	for _, raw := range raws {
-		part := strings.TrimSpace(raw)
-		if len(part) > 0 {
-			parts = append(parts, part)
-		}
-	}
-	return parts
-}
-
 func (epc *ExcludedPrefixCollector) updateExcludedPrefixes(ctx context.Context) {
 	excludePrefixPoolV4, _ := prefixpool.New()
 	excludePrefixPoolV6, _ := prefixpool.New()
@@ -147,17 +133,16 @@ func (epc *ExcludedPrefixCollector) updateExcludedPrefixes(ctx context.Context) 
 		var prefixesV4 []string
 		var prefixesV6 []string
 		for _, p := range sourcePrefixes {
-			for _, prefix := range splitPrefix(p) {
-				ip, _, err := net.ParseCIDR(prefix)
-				if err != nil {
-					log.FromContext(ctx).Errorf("Invalid CIDR %v :%v", prefix, err)
-					continue
-				}
-				if ip.To4() != nil {
-					prefixesV4 = append(prefixesV4, prefix)
-				} else {
-					prefixesV6 = append(prefixesV6, prefix)
-				}
+			prefix := strings.TrimSpace(p)
+			ip, _, err := net.ParseCIDR(prefix)
+			if err != nil {
+				log.FromContext(ctx).Errorf("Invalid CIDR %v :%v", prefix, err)
+				continue
+			}
+			if ip.To4() != nil {
+				prefixesV4 = append(prefixesV4, prefix)
+			} else {
+				prefixesV6 = append(prefixesV6, prefix)
 			}
 		}
 
@@ -177,9 +162,7 @@ func (epc *ExcludedPrefixCollector) updateExcludedPrefixes(ctx context.Context) 
 
 	newPrefixesV4 := excludePrefixPoolV4.GetPrefixes()
 	newPrefixesV6 := excludePrefixPoolV6.GetPrefixes()
-	newPrefixes := make([]string, 0, len(newPrefixesV4)+len(newPrefixesV6))
-	newPrefixes = append(newPrefixes, newPrefixesV4...)
-	newPrefixes = append(newPrefixes, newPrefixesV6...)
+	newPrefixes := append(newPrefixesV4, newPrefixesV6...)
 	if utils.UnorderedSlicesEquals(newPrefixes, epc.previousPrefixes.Load()) {
 		return
 	}
