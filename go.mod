@@ -6,8 +6,8 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/ghodss/yaml v1.0.0
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/networkservicemesh/sdk v0.5.1-0.20220314173321-130992f19d87
-	github.com/networkservicemesh/sdk-k8s v0.0.0-20220314174312-aab891969fea
+	github.com/networkservicemesh/sdk v0.5.1-0.20220315002012-985d4a0f3ada
+	github.com/networkservicemesh/sdk-k8s v0.0.0-20220315003055-63667ba69db2
 	github.com/onsi/gomega v1.16.0
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.8.1
