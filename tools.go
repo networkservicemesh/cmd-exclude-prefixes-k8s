@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2022 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -14,7 +14,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package imports
+//go:build tools
 
-//go:generate bash -c "cd $(mktemp -d) && GO111MODULE=on go get github.com/edwarnicke/imports-gen@v1.0.1"
-//go:generate ${GOPATH}/bin/imports-gen
+package tools
+
+import (
+	_ "github.com/edwarnicke/imports-gen"
+)

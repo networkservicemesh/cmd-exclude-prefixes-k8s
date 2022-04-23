@@ -1,3 +1,5 @@
+// Copyright (c) 2022 Cisco and/or its affiliates.
+//
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
@@ -77,7 +79,7 @@ func (eps *ExcludedPrefixesSuite) TestAllSourcesWithFileOutput() {
 func (eps *ExcludedPrefixesSuite) testCollectorWithFileOutput(ctx context.Context, notifyChan chan struct{},
 	expectedResult []string, sources []prefixcollector.PrefixSource) {
 	prefixesFilePath := filepath.Join(os.TempDir(), prefixesFileName)
-	_, err := os.Create(prefixesFilePath)
+	_, err := os.Create(filepath.Clean(prefixesFilePath))
 	eps.Require().NoError(err)
 
 	collector := prefixcollector.NewExcludePrefixCollector(
