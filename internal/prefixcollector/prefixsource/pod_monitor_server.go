@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2022 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,15 +29,13 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 
-	"math/big"
-
 	"github.com/networkservicemesh/sdk/pkg/tools/log"
 )
 
 type keyFunc func(event watch.Event) (string, error)
 type subnetFunc func(event watch.Event) (*net.IPNet, error)
 
-func watchPodCIDR(ctx context.Context, clientset kubernetes.Interface) (<-chan *net.IPNet, error) {
+func watchPodCIDR(ctx context.Context, clientset kubernetes.Interface) (<-chan []string, error) {
 	nodeWatcher, err := clientset.CoreV1().Nodes().Watch(ctx, metav1.ListOptions{})
 	if err != nil {
 		log.FromContext(ctx).Errorf("error creating nodeWatcher: %v", err)
@@ -73,12 +73,16 @@ func watchPodCIDR(ctx context.Context, clientset kubernetes.Interface) (<-chan *
 	return WatchSubnet(ctx, nodeWatcher, keyFunc, subnetFunc)
 }
 
-func watchServiceIPAddr(ctx context.Context, cs kubernetes.Interface) (<-chan *net.IPNet, error) {
-	serviceWatcher, err := newServiceWatcher(ctx, cs)
+func watchServiceIPAddr(ctx context.Context, cs kubernetes.Interface) (<-chan []string, error) {
+	serviceWatcher, err := cs.CoreV1().Services(metav1.NamespaceAll).Watch(ctx, metav1.ListOptions{})
 	if err != nil {
 		log.FromContext(ctx).Errorf("error creating serviceWatcher: %v", err)
 		return nil, err
 	}
+	go func() {
+		<-ctx.Done()
+		serviceWatcher.Stop()
+	}()
 
 	serviceCast := func(obj runtime.Object) (*v1.Service, error) {
 		service, ok := obj.(*v1.Service)
@@ -113,80 +117,27 @@ func ipToNet(ipAddr net.IP) *net.IPNet {
 	return &net.IPNet{IP: ipAddr, Mask: mask}
 }
 
-type serviceWatcher struct {
-	resultCh chan watch.Event
-}
-
-func (s *serviceWatcher) Stop() {
-	close(s.resultCh)
-}
-
-func (s *serviceWatcher) ResultChan() <-chan watch.Event {
-	return s.resultCh
-}
-
-func newServiceWatcher(ctx context.Context, cs kubernetes.Interface) (watch.Interface, error) {
-	ns, err := getNamespaces(cs)
-	if err != nil {
-		return nil, err
-	}
-	resultCh := make(chan watch.Event, 10)
-	stopCh := make(chan struct{})
-
-	for _, n := range ns {
-		w, err := cs.CoreV1().Services(n).Watch(ctx, metav1.ListOptions{})
-		if err != nil {
-			close(stopCh)
-			return nil, errors.Wrapf(err, "Unable to watch services in %v namespace", n)
-		}
-
-		go func() {
-			for e := range w.ResultChan() {
-				resultCh <- e
-			}
-		}()
-	}
-
-	return &serviceWatcher{
-		resultCh: resultCh,
-	}, nil
-}
-
-func getNamespaces(cs kubernetes.Interface) ([]string, error) {
-	ns, err := cs.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	rv := []string{}
-	for i := range ns.Items {
-		rv = append(rv, ns.Items[i].Name)
-	}
-	return rv, nil
-}
-
 // WatchSubnet waits for subnets from resourceWatcher, gets subnetwork from watch.Event using subnetFunc.
-// All subnets received from resourceWatcher will be forwarded to subnetCh of returned SubnetWatcher.
+// All subnets received from resourceWatcher will be forwarded to prefixCh of returned SubnetWatcher.
 func WatchSubnet(ctx context.Context, resourceWatcher watch.Interface,
-	keyFunc keyFunc, subnetFunc subnetFunc) (<-chan *net.IPNet, error) {
-	subnetCh := make(chan *net.IPNet, 10)
+	keyFunc keyFunc, subnetFunc subnetFunc) (<-chan []string, error) {
+	prefixesCh := make(chan []string, 10)
 
-	cache := map[string]string{}
-	var lastIPNet *net.IPNet
+	var prefixes map[string]struct{}
 
 	go func() {
+		defer resourceWatcher.Stop()
 		for {
 			select {
 			case <-ctx.Done():
-				resourceWatcher.Stop()
 				return
 			case event, ok := <-resourceWatcher.ResultChan():
 				if !ok {
-					close(subnetCh)
+					close(prefixesCh)
 					return
 				}
 
-				if event.Type == watch.Error || event.Type == watch.Deleted {
+				if event.Type == watch.Error {
 					continue
 				}
 
@@ -195,73 +146,24 @@ func WatchSubnet(ctx context.Context, resourceWatcher watch.Interface,
 					continue
 				}
 
-				key, err := keyFunc(event)
-				if err != nil {
+				if _, ok := prefixes[ipNet.String()]; ok && event.Type != watch.Deleted {
 					continue
+				}
+				if event.Type == watch.Deleted {
+					delete(prefixes, ipNet.String())
+				} else {
+					prefixes[ipNet.String()] = struct{}{}
+				}
+				var actualPrefixes []string
+
+				for p := range prefixes {
+					actualPrefixes = append(actualPrefixes, p)
 				}
 
-				if subnet, exist := cache[key]; exist && subnet == ipNet.String() {
-					continue
-				}
-				cache[key] = ipNet.String()
-
-				if lastIPNet == nil {
-					lastIPNet = ipNet
-					subnetCh <- lastIPNet
-					continue
-				}
-
-				newIPNet := maxCommonPrefixSubnet(lastIPNet, ipNet)
-				if newIPNet.String() != lastIPNet.String() {
-					lastIPNet = newIPNet
-					subnetCh <- lastIPNet
-					continue
-				}
+				prefixesCh <- actualPrefixes
 			}
 		}
 	}()
 
-	return subnetCh, nil
-}
-
-func maxCommonPrefixSubnet(s1, s2 *net.IPNet) *net.IPNet {
-	rawIP1, n1 := fromIP(s1.IP)
-	rawIP2, _ := fromIP(s2.IP)
-
-	xored := &big.Int{}
-	xored.Xor(rawIP1, rawIP2)
-	maskSize := leadingZeros(xored, n1)
-
-	m1, bits := s1.Mask.Size()
-	m2, _ := s2.Mask.Size()
-
-	mask := net.CIDRMask(min(min(m1, m2), maskSize), bits)
-	return &net.IPNet{
-		IP:   s1.IP.Mask(mask),
-		Mask: mask,
-	}
-}
-
-func fromIP(ip net.IP) (ipVal *big.Int, ipLen int) {
-	val := &big.Int{}
-	val.SetBytes([]byte(ip))
-	i := len(ip)
-	if i == net.IPv4len {
-		return val, 32
-	} // else if i == net.IPv6len
-	return val, 128
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func leadingZeros(n *big.Int, size int) int {
-	i := size - 1
-	for ; n.Bit(i) == 0 && i > 0; i-- {
-	}
-	return size - 1 - i
+	return prefixesCh, nil
 }
