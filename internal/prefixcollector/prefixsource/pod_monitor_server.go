@@ -117,14 +117,6 @@ func ipToNet(ipAddr net.IP) *net.IPNet {
 	return &net.IPNet{IP: ipAddr, Mask: mask}
 }
 
-type serviceWatcher struct {
-	resultCh <-chan watch.Event
-}
-
-func (s *serviceWatcher) ResultChan() <-chan watch.Event {
-	return s.resultCh
-}
-
 // WatchSubnet waits for subnets from resourceWatcher, gets subnetwork from watch.Event using subnetFunc.
 // All subnets received from resourceWatcher will be forwarded to prefixCh of returned SubnetWatcher.
 func WatchSubnet(ctx context.Context, resourceWatcher watch.Interface,
