@@ -123,7 +123,7 @@ func WatchSubnet(ctx context.Context, resourceWatcher watch.Interface,
 	keyFunc keyFunc, subnetFunc subnetFunc) (<-chan []string, error) {
 	prefixesCh := make(chan []string, 10)
 
-	var prefixes map[string]struct{}
+	var prefixes = make(map[string]struct{})
 
 	go func() {
 		defer resourceWatcher.Stop()
