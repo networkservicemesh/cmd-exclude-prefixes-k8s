@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2022 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -95,16 +97,4 @@ func (kps *KubernetesPrefixSource) waitForSubnets(podChan, serviceChan <-chan []
 		kps.prefixes.Store(prefixes)
 		kps.notify <- struct{}{}
 	}
-}
-
-func getPrefixes(podSubnet, serviceSubnet string) []string {
-	var prefixes []string
-	if len(podSubnet) > 0 {
-		prefixes = append(prefixes, podSubnet)
-	}
-	if len(serviceSubnet) > 0 {
-		prefixes = append(prefixes, serviceSubnet)
-	}
-
-	return prefixes
 }

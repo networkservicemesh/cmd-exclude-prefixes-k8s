@@ -161,7 +161,6 @@ func WatchSubnet(ctx context.Context, resourceWatcher watch.Interface,
 				}
 
 				prefixesCh <- actualPrefixes
-
 			}
 		}
 	}()
