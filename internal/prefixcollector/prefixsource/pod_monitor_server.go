@@ -35,7 +35,7 @@ import (
 type keyFunc func(event watch.Event) (string, error)
 type subnetFunc func(event watch.Event) (*net.IPNet, error)
 
-func watchPodCIDR(ctx context.Context, clientset kubernetes.Interface) (<-chan *net.IPNet, error) {
+func watchPodCIDR(ctx context.Context, clientset kubernetes.Interface) (<-chan []string, error) {
 	nodeWatcher, err := clientset.CoreV1().Nodes().Watch(ctx, metav1.ListOptions{})
 	if err != nil {
 		log.FromContext(ctx).Errorf("error creating nodeWatcher: %v", err)
@@ -73,7 +73,7 @@ func watchPodCIDR(ctx context.Context, clientset kubernetes.Interface) (<-chan *
 	return WatchSubnet(ctx, nodeWatcher, keyFunc, subnetFunc)
 }
 
-func watchServiceIPAddr(ctx context.Context, cs kubernetes.Interface) (<-chan *net.IPNet, error) {
+func watchServiceIPAddr(ctx context.Context, cs kubernetes.Interface) (<-chan []string, error) {
 	serviceWatcher, err := cs.CoreV1().Services(metav1.NamespaceAll).Watch(ctx, metav1.ListOptions{})
 	if err != nil {
 		log.FromContext(ctx).Errorf("error creating serviceWatcher: %v", err)
@@ -126,27 +126,26 @@ func (s *serviceWatcher) ResultChan() <-chan watch.Event {
 }
 
 // WatchSubnet waits for subnets from resourceWatcher, gets subnetwork from watch.Event using subnetFunc.
-// All subnets received from resourceWatcher will be forwarded to subnetCh of returned SubnetWatcher.
+// All subnets received from resourceWatcher will be forwarded to prefixCh of returned SubnetWatcher.
 func WatchSubnet(ctx context.Context, resourceWatcher watch.Interface,
-	keyFunc keyFunc, subnetFunc subnetFunc) (<-chan *net.IPNet, error) {
-	subnetCh := make(chan *net.IPNet, 10)
+	keyFunc keyFunc, subnetFunc subnetFunc) (<-chan []string, error) {
+	prefixesCh := make(chan []string, 10)
 
-	cache := map[string]string{}
-	var lastIPNet *net.IPNet
+	var prefixes map[string]struct{}
 
 	go func() {
+		defer resourceWatcher.Stop()
 		for {
 			select {
 			case <-ctx.Done():
-				resourceWatcher.Stop()
 				return
 			case event, ok := <-resourceWatcher.ResultChan():
 				if !ok {
-					close(subnetCh)
+					close(prefixesCh)
 					return
 				}
 
-				if event.Type == watch.Error || event.Type == watch.Deleted {
+				if event.Type == watch.Error {
 					continue
 				}
 
@@ -155,29 +154,25 @@ func WatchSubnet(ctx context.Context, resourceWatcher watch.Interface,
 					continue
 				}
 
-				key, err := keyFunc(event)
-				if err != nil {
+				if _, ok := prefixes[ipNet.String()]; ok && event.Type != watch.Deleted {
 					continue
+				}
+				if event.Type == watch.Deleted {
+					delete(prefixes, ipNet.String())
+				} else {
+					prefixes[ipNet.String()] = struct{}{}
+				}
+				var actualPrefixes []string
+
+				for p := range prefixes {
+					actualPrefixes = append(actualPrefixes, p)
 				}
 
-				if subnet, exist := cache[key]; exist && subnet == ipNet.String() {
-					continue
-				}
-				cache[key] = ipNet.String()
+				prefixesCh <- actualPrefixes
 
-				if lastIPNet == nil {
-					lastIPNet = ipNet
-					subnetCh <- lastIPNet
-					continue
-				}
-				if ipNet.String() != lastIPNet.String() {
-					lastIPNet = ipNet
-					subnetCh <- lastIPNet
-					continue
-				}
 			}
 		}
 	}()
 
-	return subnetCh, nil
+	return prefixesCh, nil
 }

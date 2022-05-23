@@ -20,7 +20,6 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"net"
 
 	"k8s.io/client-go/kubernetes"
 
@@ -72,8 +71,8 @@ func (kps *KubernetesPrefixSource) watchSubnets(clientSet kubernetes.Interface) 
 	kps.waitForSubnets(podChan, serviceChan)
 }
 
-func (kps *KubernetesPrefixSource) waitForSubnets(podChan, serviceChan <-chan *net.IPNet) {
-	var podSubnet, serviceSubnet string
+func (kps *KubernetesPrefixSource) waitForSubnets(podChan, serviceChan <-chan []string) {
+	var podPrefixes, svcPrefixes []string
 	for {
 		select {
 		case <-kps.ctx.Done():
@@ -82,15 +81,17 @@ func (kps *KubernetesPrefixSource) waitForSubnets(podChan, serviceChan <-chan *n
 			if !ok {
 				return
 			}
-			podSubnet = subnet.String()
+			podPrefixes = subnet
 		case subnet, ok := <-serviceChan:
 			if !ok {
 				return
 			}
-			serviceSubnet = subnet.String()
+			svcPrefixes = subnet
 		}
 
-		prefixes := getPrefixes(podSubnet, serviceSubnet)
+		var prefixes []string
+		prefixes = append(prefixes, svcPrefixes...)
+		prefixes = append(prefixes, podPrefixes...)
 		kps.prefixes.Store(prefixes)
 		kps.notify <- struct{}{}
 	}
