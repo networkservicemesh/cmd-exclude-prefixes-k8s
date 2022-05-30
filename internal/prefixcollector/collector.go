@@ -160,9 +160,7 @@ func (epc *ExcludedPrefixCollector) updateExcludedPrefixes(ctx context.Context) 
 		}
 	}
 
-	newPrefixesV4 := excludePrefixPoolV4.GetPrefixes()
-	newPrefixesV6 := excludePrefixPoolV6.GetPrefixes()
-	newPrefixes := append(newPrefixesV4, newPrefixesV6...)
+	newPrefixes := append(excludePrefixPoolV4.GetPrefixes(), excludePrefixPoolV6.GetPrefixes()...)
 	if utils.UnorderedSlicesEquals(newPrefixes, epc.previousPrefixes.Load()) {
 		return
 	}
