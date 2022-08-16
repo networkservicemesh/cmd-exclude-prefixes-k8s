@@ -375,10 +375,10 @@ github.com/naoina/go-stringutil v0.1.0/go.mod h1:XJ2SJL9jCtBh+P9q5btrd/Ylo8XwT/h
 github.com/naoina/toml v0.1.1/go.mod h1:NBIhNtsFMo3G2szEBne+bO4gS192HuIYRqfvOWb4i1E=
 github.com/networkservicemesh/api v1.4.1-0.20220711153918-a59689088578 h1:2MZD6SGFULqTgMKA8BFy7F+ldRErAyxsWht7oCwCVRM=
 github.com/networkservicemesh/api v1.4.1-0.20220711153918-a59689088578/go.mod h1:hOF2844BSstH1311oDMDgqqXS+kdc77htZNPRKl9mf8=
-github.com/networkservicemesh/sdk v0.5.1-0.20220728125347-990b34144761 h1:dJKtHDsa4rIZv/IhFzGV3/QVcmBZx5dDvxHSs+ZNhWs=
-github.com/networkservicemesh/sdk v0.5.1-0.20220728125347-990b34144761/go.mod h1:aT31j34psbMwTmyxgKZweiuYv783A1levN9nSKUVVp0=
-github.com/networkservicemesh/sdk-k8s v0.0.0-20220728130337-cfa53d82a9be h1:rsffsst0mpOuz7D6ApFsoGx/0NJCDtehHLyDl/1RPac=
-github.com/networkservicemesh/sdk-k8s v0.0.0-20220728130337-cfa53d82a9be/go.mod h1:Vg5rNDJG2w6xMbCHLdMC8xkrLWblFA/i5MhgTL81GLc=
+github.com/networkservicemesh/sdk v0.5.1-0.20220816110630-67e508c2371a h1:4oyB4/ProP6MB0MO/pgAb7f5BaxBjMrPrD8NUrx6V4Y=
+github.com/networkservicemesh/sdk v0.5.1-0.20220816110630-67e508c2371a/go.mod h1:aT31j34psbMwTmyxgKZweiuYv783A1levN9nSKUVVp0=
+github.com/networkservicemesh/sdk-k8s v0.0.0-20220816111430-72783c8b0303 h1:K0dvprbPpC5AmSzCUvxFrL7z51UtR+XzO1YPhHluZco=
+github.com/networkservicemesh/sdk-k8s v0.0.0-20220816111430-72783c8b0303/go.mod h1:HN0tAAHW/pWSXK+sVB5zVb6AXuRB+p1aZOpakt7mMLw=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
