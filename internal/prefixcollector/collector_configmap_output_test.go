@@ -189,6 +189,32 @@ func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
 	eps.testCollectorWithConfigmapOutput(ctx, notifyChan, expectedResult, sources)
 }
 
+func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSourceRefresh() {
+	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
+	expectedResult := []string{
+		"10.244.0.0/16",
+		"10.96.0.0/12",
+	}
+
+	notifyChan := make(chan struct{}, 1)
+	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
+	defer cancel()
+
+	clients := eps.clientSet.(*fake.Clientset)
+	countWatchers, stopAndDisableWatcher := interceptWatcher(clients)
+
+	sources := []prefixcollector.PrefixSource{
+		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
+	}
+
+	eps.Eventually(func() bool { return countWatchers() == 1 }, time.Second, 10*time.Millisecond)
+	stopAndDisableWatcher()
+	eps.Eventually(func() bool { return countWatchers() == 2 }, time.Second, 10*time.Millisecond)
+
+	eps.createConfigMap(ctx, prefixsource.KubeNamespace, kubeConfigMapPath)
+	eps.testCollectorWithConfigmapOutput(ctx, notifyChan, expectedResult, sources)
+}
+
 func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSourceIPv6() {
 	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
 	expectedResult := []string{
