@@ -66,7 +66,11 @@ func NewKubeAdmPrefixSource(ctx context.Context, notify chan<- struct{}) *KubeAd
 		prefixes:           utils.NewSynchronizedPrefixesContainer(),
 	}
 
-	go kaps.watchKubeAdmConfigMap()
+	go func() {
+		for kaps.ctx.Err() == nil {
+			kaps.watchKubeAdmConfigMap()
+		}
+	}()
 	return &kaps
 }
 
@@ -83,11 +87,15 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 	for {
 		select {
 		case <-kaps.ctx.Done():
+			log.FromContext(kaps.ctx).Warn("kubeadm configMap context is cancelled")
 			return
 		case event, ok := <-configMapWatch.ResultChan():
 			if !ok {
+				log.FromContext(kaps.ctx).Warn("kubeadm configMap watcher is closed")
 				return
 			}
+
+			log.FromContext(kaps.ctx).Tracef("kubeadm configMap event received: %v", event)
 
 			if event.Type == watch.Error {
 				continue
@@ -101,6 +109,7 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 			if event.Type == watch.Deleted {
 				kaps.prefixes.Store([]string(nil))
 				kaps.notify <- struct{}{}
+				log.FromContext(kaps.ctx).Info("kubeadm configMap deleted")
 				continue
 			}
 
