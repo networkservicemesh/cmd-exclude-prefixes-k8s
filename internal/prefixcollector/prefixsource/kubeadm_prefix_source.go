@@ -77,12 +77,13 @@ func NewKubeAdmPrefixSource(ctx context.Context, notify chan<- struct{}) *KubeAd
 func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 	log.FromContext(kaps.ctx).Infof("Watch kubeadm configMap")
 
-	kaps.checkCurrentConfigMap()
 	configMapWatch, err := kaps.configMapInterface.Watch(kaps.ctx, metav1.ListOptions{})
 	if err != nil {
 		log.FromContext(kaps.ctx).Errorf("Error creating config map watch: %v", err)
 		return
 	}
+
+	kaps.checkCurrentConfigMap()
 
 	for {
 		select {
