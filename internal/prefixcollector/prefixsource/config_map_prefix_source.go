@@ -70,12 +70,12 @@ func (cmps *ConfigMapPrefixSource) Prefixes() []string {
 }
 
 func (cmps *ConfigMapPrefixSource) watchConfigMap() {
-	cmps.checkCurrentConfigMap()
 	configMapWatch, err := cmps.configMapInterface.Watch(cmps.ctx, metav1.ListOptions{})
 	if err != nil {
 		log.FromContext(cmps.ctx).Errorf("Error creating config map watch: %v", err)
 		return
 	}
+	cmps.checkCurrentConfigMap()
 
 	log.FromContext(cmps.ctx).Info("Starting watching configmaps")
 
