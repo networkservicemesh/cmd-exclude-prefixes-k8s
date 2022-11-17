@@ -88,7 +88,7 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 	for {
 		select {
 		case <-kaps.ctx.Done():
-			log.FromContext(kaps.ctx).Warn("kubeadm configMap context is cancelled")
+			log.FromContext(kaps.ctx).Warn("kubeadm configMap context is canceled")
 			return
 		case event, ok := <-configMapWatch.ResultChan():
 			if !ok {
