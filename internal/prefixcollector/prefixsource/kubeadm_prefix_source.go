@@ -83,6 +83,8 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 		return
 	}
 
+	// we should check current state after we create the watcher,
+	// or else we could miss an update
 	kaps.checkCurrentConfigMap()
 
 	for {

@@ -77,6 +77,9 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 		log.FromContext(cmps.ctx).Errorf("Error creating config map watch: %v", err)
 		return
 	}
+
+	// we should check current state after we create the watcher,
+	// or else we could miss an update
 	cmps.checkCurrentConfigMap()
 
 	log.FromContext(cmps.ctx).Info("Starting watching configmaps")
