@@ -7,7 +7,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/networkservicemesh/sdk v0.5.1-0.20221124104929-d83bdbd65e5a
-	github.com/networkservicemesh/sdk-k8s v0.0.0-20221206232124-a44ae6cddbad
+	github.com/networkservicemesh/sdk-k8s v0.0.0-20221206233229-0bd1359737d9
 	github.com/onsi/gomega v1.20.1
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.0
@@ -64,7 +64,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20220822191816-0ebed06d0094 // indirect
 	golang.org/x/sys v0.0.0-20220908164124-27713097b956 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/text v0.5.0 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220908141613-51c1cc9bc6d0 // indirect
