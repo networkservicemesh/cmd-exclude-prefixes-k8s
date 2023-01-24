@@ -66,28 +66,39 @@ func NewKubeAdmPrefixSource(ctx context.Context, notify chan<- struct{}) *KubeAd
 		prefixes:           utils.NewSynchronizedPrefixesContainer(),
 	}
 
-	go kaps.watchKubeAdmConfigMap()
+	go func() {
+		for kaps.ctx.Err() == nil {
+			kaps.watchKubeAdmConfigMap()
+		}
+	}()
 	return &kaps
 }
 
 func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 	log.FromContext(kaps.ctx).Infof("Watch kubeadm configMap")
 
-	kaps.checkCurrentConfigMap()
 	configMapWatch, err := kaps.configMapInterface.Watch(kaps.ctx, metav1.ListOptions{})
 	if err != nil {
 		log.FromContext(kaps.ctx).Errorf("Error creating config map watch: %v", err)
 		return
 	}
 
+	// we should check current state after we create the watcher,
+	// or else we could miss an update
+	kaps.checkCurrentConfigMap()
+
 	for {
 		select {
 		case <-kaps.ctx.Done():
+			log.FromContext(kaps.ctx).Warn("kubeadm configMap context is canceled")
 			return
 		case event, ok := <-configMapWatch.ResultChan():
 			if !ok {
+				log.FromContext(kaps.ctx).Warn("kubeadm configMap watcher is closed")
 				return
 			}
+
+			log.FromContext(kaps.ctx).Tracef("kubeadm configMap event received: %v", event)
 
 			if event.Type == watch.Error {
 				continue
@@ -101,6 +112,7 @@ func (kaps *KubeAdmPrefixSource) watchKubeAdmConfigMap() {
 			if event.Type == watch.Deleted {
 				kaps.prefixes.Store([]string(nil))
 				kaps.notify <- struct{}{}
+				log.FromContext(kaps.ctx).Info("kubeadm configMap deleted")
 				continue
 			}
 

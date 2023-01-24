@@ -38,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stest "k8s.io/client-go/testing"
 )
 
 const (
@@ -136,6 +137,38 @@ func (eps *ExcludedPrefixesSuite) TestConfigMapSource() {
 	eps.testCollectorWithConfigmapOutput(ctx, notifyChan, expectedResult, sources)
 }
 
+func (eps *ExcludedPrefixesSuite) TestConfigMapSourceRefresh() {
+	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
+	expectedResult := []string{
+		"168.0.0.0/10",
+		"1.0.0.0/11",
+	}
+	notifyChan := make(chan struct{}, 1)
+
+	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
+	defer cancel()
+
+	clients := eps.clientSet.(*fake.Clientset)
+	countWatchers, stopAndDisableWatcher := interceptWatcher(clients)
+
+	sources := []prefixcollector.PrefixSource{
+		prefixsource.NewConfigMapPrefixSource(
+			ctx,
+			notifyChan,
+			userConfigMapName,
+			configMapNamespace,
+			userConfigMapKey,
+		),
+	}
+
+	eps.Eventually(func() bool { return countWatchers() == 1 }, time.Second, 10*time.Millisecond)
+	stopAndDisableWatcher()
+	eps.Eventually(func() bool { return countWatchers() == 2 }, time.Second, 10*time.Millisecond)
+
+	eps.createConfigMap(ctx, configMapNamespace, configMapPath)
+	eps.testCollectorWithConfigmapOutput(ctx, notifyChan, expectedResult, sources)
+}
+
 func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
 	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
 	expectedResult := []string{
@@ -153,6 +186,32 @@ func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSource() {
 		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
 	}
 
+	eps.testCollectorWithConfigmapOutput(ctx, notifyChan, expectedResult, sources)
+}
+
+func (eps *ExcludedPrefixesSuite) TestKubeAdmConfigSourceRefresh() {
+	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
+	expectedResult := []string{
+		"10.244.0.0/16",
+		"10.96.0.0/12",
+	}
+
+	notifyChan := make(chan struct{}, 1)
+	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
+	defer cancel()
+
+	clients := eps.clientSet.(*fake.Clientset)
+	countWatchers, stopAndDisableWatcher := interceptWatcher(clients)
+
+	sources := []prefixcollector.PrefixSource{
+		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
+	}
+
+	eps.Eventually(func() bool { return countWatchers() == 1 }, time.Second, 10*time.Millisecond)
+	stopAndDisableWatcher()
+	eps.Eventually(func() bool { return countWatchers() == 2 }, time.Second, 10*time.Millisecond)
+
+	eps.createConfigMap(ctx, prefixsource.KubeNamespace, kubeConfigMapPath)
 	eps.testCollectorWithConfigmapOutput(ctx, notifyChan, expectedResult, sources)
 }
 
@@ -282,7 +341,11 @@ func (eps *ExcludedPrefixesSuite) watchConfigMap(ctx context.Context, maxModifyC
 	go func() {
 		for {
 			select {
-			case event := <-watcher.ResultChan():
+			case event, ok := <-watcher.ResultChan():
+				if !ok {
+					errorCh <- errors.New("error watching configmap")
+					return
+				}
 				configMap := event.Object.(*v1.ConfigMap)
 				if event.Type == watch.Error {
 					errorCh <- errors.New("error watching configmap")
@@ -318,4 +381,23 @@ func getConfigMap(t *testing.T, filePath string) *v1.ConfigMap {
 	}
 
 	return &destination
+}
+
+func interceptWatcher(clients *fake.Clientset) (getCount func() int, stopAndDisable func()) {
+	enable := true
+	count := 0
+	watcher := watch.NewFake()
+
+	var reactionFunc k8stest.WatchReactionFunc = func(action k8stest.Action) (bool, watch.Interface, error) {
+		count++
+		return enable, watcher, nil
+	}
+
+	clients.PrependWatchReactor("configmaps", reactionFunc)
+
+	return func() int { return count },
+		func() {
+			enable = false
+			watcher.Stop()
+		}
 }

@@ -59,6 +59,8 @@ func NewKubernetesPrefixSource(ctx context.Context, notify chan<- struct{}) *Kub
 }
 
 func (kps *KubernetesPrefixSource) watchSubnets(clientSet kubernetes.Interface) {
+	log.FromContext(kps.ctx).Infof("KubernetesPrefixSource watch subnets")
+
 	podChan, err := watchPodCIDR(kps.ctx, clientSet)
 	if err != nil {
 		return
@@ -78,14 +80,17 @@ func (kps *KubernetesPrefixSource) waitForSubnets(podChan, serviceChan <-chan []
 	for {
 		select {
 		case <-kps.ctx.Done():
+			log.FromContext(kps.ctx).Warn("Watch kubeadm configMap")
 			return
 		case subnet, ok := <-podChan:
 			if !ok {
+				log.FromContext(kps.ctx).Warn("podChan watcher closed")
 				return
 			}
 			podPrefixes = subnet
 		case subnet, ok := <-serviceChan:
 			if !ok {
+				log.FromContext(kps.ctx).Warn("serviceChan closed")
 				return
 			}
 			svcPrefixes = subnet

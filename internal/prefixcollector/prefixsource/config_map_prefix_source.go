@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2022 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,7 +58,11 @@ func NewConfigMapPrefixSource(ctx context.Context, notify chan<- struct{}, name,
 		prefixes:           utils.NewSynchronizedPrefixesContainer(),
 	}
 
-	go cmps.watchConfigMap()
+	go func() {
+		for cmps.ctx.Err() == nil {
+			cmps.watchConfigMap()
+		}
+	}()
 	return &cmps
 }
 
@@ -66,27 +72,34 @@ func (cmps *ConfigMapPrefixSource) Prefixes() []string {
 }
 
 func (cmps *ConfigMapPrefixSource) watchConfigMap() {
-	cmps.checkCurrentConfigMap()
 	configMapWatch, err := cmps.configMapInterface.Watch(cmps.ctx, metav1.ListOptions{})
 	if err != nil {
 		log.FromContext(cmps.ctx).Errorf("Error creating config map watch: %v", err)
 		return
 	}
 
+	// we should check current state after we create the watcher,
+	// or else we could miss an update
+	cmps.checkCurrentConfigMap()
+
+	log.FromContext(cmps.ctx).Info("Starting watching configmaps")
+
 	for {
 		select {
 		case <-cmps.ctx.Done():
+			log.FromContext(cmps.ctx).Warn("Configmaps watcher context is canceled")
 			return
 		case event, ok := <-configMapWatch.ResultChan():
 			if !ok {
+				log.FromContext(cmps.ctx).Warn("Configmaps watcher is closed")
 				return
 			}
+
+			log.FromContext(cmps.ctx).Tracef("Config map event received: %v", event)
 
 			if event.Type == watch.Error {
 				continue
 			}
-
-			log.FromContext(cmps.ctx).Infof("Event received:%v", event)
 
 			configMap, ok := event.Object.(*apiV1.ConfigMap)
 			if !ok || configMap.Name != cmps.configMapName {
@@ -96,11 +109,12 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 			if event.Type == watch.Deleted {
 				cmps.prefixes.Store([]string(nil))
 				cmps.notify <- struct{}{}
+				log.FromContext(cmps.ctx).Info("Prefixes from config map deleted")
 				continue
 			}
 
 			if err = cmps.setPrefixesFromConfigMap(configMap); err != nil {
-				log.FromContext(cmps.ctx).Errorf("Error setting prefixes from config map:%s", configMap.Name)
+				log.FromContext(cmps.ctx).Errorf("Error setting prefixes from config map: %s", configMap.Name)
 			}
 		}
 	}
@@ -109,12 +123,12 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 func (cmps *ConfigMapPrefixSource) checkCurrentConfigMap() {
 	configMap, err := cmps.configMapInterface.Get(cmps.ctx, cmps.configMapName, metav1.GetOptions{})
 	if err != nil {
-		log.FromContext(cmps.ctx).Errorf("Error getting config map : %v", err)
+		log.FromContext(cmps.ctx).Errorf("Error getting config map: %v", err)
 		return
 	}
 
 	if err = cmps.setPrefixesFromConfigMap(configMap); err != nil {
-		log.FromContext(cmps.ctx).Errorf("Error setting prefixes from config map:%s", configMap.Name)
+		log.FromContext(cmps.ctx).Errorf("Error setting prefixes from config map: %s", configMap.Name)
 	}
 }
 
