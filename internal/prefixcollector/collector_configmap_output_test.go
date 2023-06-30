@@ -1,6 +1,6 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2022 Cisco and/or its affiliates.
+// Copyright (c) 2022-2023 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -23,12 +23,13 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixsource"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/suite"
@@ -372,7 +373,7 @@ func (eps *ExcludedPrefixesSuite) watchConfigMap(ctx context.Context, maxModifyC
 
 func getConfigMap(t *testing.T, filePath string) *v1.ConfigMap {
 	destination := v1.ConfigMap{}
-	bytes, err := ioutil.ReadFile(filepath.Clean(filePath))
+	bytes, err := os.ReadFile(filepath.Clean(filePath))
 	if err != nil {
 		t.Fatal("Error reading user config map: ", err)
 	}

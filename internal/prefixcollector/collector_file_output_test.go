@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2022 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2023 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +23,6 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixsource"
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -101,7 +102,7 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithFileOutput(ctx context.Contex
 		eps.T().Errorf("Error closing watcher: %v", watchErr)
 	}
 
-	bytes, err := ioutil.ReadFile(filepath.Clean(prefixesFilePath))
+	bytes, err := os.ReadFile(filepath.Clean(prefixesFilePath))
 	if err != nil {
 		eps.T().Fatalf("Error reading file: %v", err)
 	}
@@ -122,13 +123,13 @@ func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePat
 
 	if err != nil {
 		errorCh <- err
-		return
+		return watcher, errorCh
 	}
 
 	err = watcher.Add(prefixesFilePath)
 	if err != nil {
 		errorCh <- err
-		return
+		return watcher, errorCh
 	}
 
 	go func() {

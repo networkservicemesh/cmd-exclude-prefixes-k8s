@@ -1,5 +1,7 @@
 // Copyright (c) 2021-2022 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2023 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +22,6 @@ import (
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector"
 	"cmd-exclude-prefixes-k8s/internal/prefixcollector/prefixsource"
 	"context"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"strings"
@@ -104,7 +105,7 @@ func main() {
 
 	prefixesOutputOption := prefixcollector.WithFileOutput(config.OutputFilePath)
 	if config.PrefixesOutputType == prefixcollector.ConfigMapOutputType {
-		currentNamespaceBytes, ioErr := ioutil.ReadFile(currentNamespacePath)
+		currentNamespaceBytes, ioErr := os.ReadFile(currentNamespacePath)
 		if ioErr != nil {
 			log.FromContext(ctx).Fatalf("Error reading namespace from secret: %v", ioErr)
 		}

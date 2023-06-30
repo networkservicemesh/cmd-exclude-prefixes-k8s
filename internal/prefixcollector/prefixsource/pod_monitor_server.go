@@ -1,6 +1,6 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2022 Cisco and/or its affiliates.
+// Copyright (c) 2022-2023 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -120,7 +120,7 @@ func ipToNet(ipAddr net.IP) *net.IPNet {
 // WatchSubnet waits for subnets from resourceWatcher, gets subnetwork from watch.Event using subnetFunc.
 // All subnets received from resourceWatcher will be forwarded to prefixCh of returned SubnetWatcher.
 func WatchSubnet(ctx context.Context, resourceWatcher watch.Interface,
-	keyFunc keyFunc, subnetFunc subnetFunc) (<-chan []string, error) {
+	_ keyFunc, subnetFunc subnetFunc) (<-chan []string, error) {
 	prefixesCh := make(chan []string, 10)
 
 	var prefixes = make(map[string]struct{})
