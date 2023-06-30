@@ -1,4 +1,6 @@
-// Copyright (c) 2020-2022 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2023 Doc.ai and/or its affiliates.
+//
+// Copyright (c) 2023 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,7 +21,7 @@ package prefixcollector
 import (
 	"cmd-exclude-prefixes-k8s/internal/utils"
 	"context"
-	"io/ioutil"
+	"os"
 
 	"github.com/pkg/errors"
 	apiV1 "k8s.io/api/core/v1"
@@ -46,7 +48,7 @@ func fileWriter(filePath string) writePrefixesFunc {
 			return
 		}
 
-		err = ioutil.WriteFile(filePath, data, outputFilePermissions)
+		err = os.WriteFile(filePath, data, outputFilePermissions)
 		if err != nil {
 			log.FromContext(ctx).Fatalf("Unable to write into file: %v", err.Error())
 		}
