@@ -123,13 +123,13 @@ func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePat
 
 	if err != nil {
 		errorCh <- err
-		return
+		return watcher, errorCh
 	}
 
 	err = watcher.Add(prefixesFilePath)
 	if err != nil {
 		errorCh <- err
-		return
+		return watcher, errorCh
 	}
 
 	go func() {
