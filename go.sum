@@ -395,12 +395,12 @@ github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRW
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+o7JKHSa8/e818NopupXU1YMK5fe1lsApnBw=
 github.com/naoina/go-stringutil v0.1.0/go.mod h1:XJ2SJL9jCtBh+P9q5btrd/Ylo8XwT/h1USek5+NqSA0=
 github.com/naoina/toml v0.1.1/go.mod h1:NBIhNtsFMo3G2szEBne+bO4gS192HuIYRqfvOWb4i1E=
-github.com/networkservicemesh/api v1.9.1-0.20230627143611-9785eacf9687 h1:Kb6h5eMQpRF4jwRIJjD/uciTsA5Fr0b61fFUmyyVVh4=
-github.com/networkservicemesh/api v1.9.1-0.20230627143611-9785eacf9687/go.mod h1:DO7D13Y4x/A8tQ2cQyUWa9o5wi7XHUB8+vITWRKreCc=
-github.com/networkservicemesh/sdk v0.5.1-0.20230710100721-01bb35f8c3d6 h1:Pl1/e4k+i6+QYyW5NPiocwHK70r4c5qXIkzzoy4EYnQ=
-github.com/networkservicemesh/sdk v0.5.1-0.20230710100721-01bb35f8c3d6/go.mod h1:r9XRbQ6UlS0+hefduzFb1cX9j3W/XNOqFqUlcQk7xYM=
-github.com/networkservicemesh/sdk-k8s v0.0.0-20230710101404-d57e430dbb82 h1:Q4yYFd677mEwJfyk4K7/hFDS3hNmZEJl2dUxFUYLioE=
-github.com/networkservicemesh/sdk-k8s v0.0.0-20230710101404-d57e430dbb82/go.mod h1:/NsquabG/sO5LCxzoZSbQD38F/kyrZv2tA4VtvQ+7ik=
+github.com/networkservicemesh/api v1.10.0 h1:tSVjKsLuQX7UqS1OR1h4QR/Pfx2hV489QIUATNbfCNo=
+github.com/networkservicemesh/api v1.10.0/go.mod h1:DO7D13Y4x/A8tQ2cQyUWa9o5wi7XHUB8+vITWRKreCc=
+github.com/networkservicemesh/sdk v1.10.0 h1:o3V5bgmeuwOxR7Qjq32fTBhGLvRwlFR4cUWK9DcT6fo=
+github.com/networkservicemesh/sdk v1.10.0/go.mod h1:895d/V2YuDi7/lYrxYQ1earWI4V97YTti8LsLWN6Ih0=
+github.com/networkservicemesh/sdk-k8s v1.10.0 h1:SKShaHUQhnw4ZRi/LOJSbJIU4KF4EutMPsjbuWI4kAg=
+github.com/networkservicemesh/sdk-k8s v1.10.0/go.mod h1:fCbxdTrhuxYEYd4wgB++vI84VvdW+cwyoiq2mEiuDyM=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
@@ -546,6 +546,8 @@ go.opentelemetry.io/proto/otlp v0.19.0 h1:IVN6GR+mhC4s5yfcTbmzHYODqvWAp3ZedA2SJP
 go.opentelemetry.io/proto/otlp v0.19.0/go.mod h1:H7XAot3MsfNsj7EXtrA2q5xSNQ10UqI405h3+duxN4U=
 go.uber.org/atomic v1.3.2/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
 go.uber.org/atomic v1.4.0/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
+go.uber.org/atomic v1.7.0 h1:ADUqmZGgLDDfbSL9ZmPxKTybcoEYHgpYfELNoN+7hsw=
+go.uber.org/atomic v1.7.0/go.mod h1:fEN4uk6kAWBTFdckzkM89CLk9XfWZrxpCo0nPH17wJc=
 go.uber.org/goleak v1.2.1 h1:NBol2c7O1ZokfZ0LEU9K6Whx/KnwvepVetCUhtKja4A=
 go.uber.org/goleak v1.2.1/go.mod h1:qlT2yGI9QafXHhZZLxlSuNsMw3FFLxBr+tBRlmO1xH4=
 go.uber.org/multierr v1.1.0/go.mod h1:wR5kodmAFQ0UK8QlbwjlSNy0Z68gJhDJUG5sjR94q/0=
