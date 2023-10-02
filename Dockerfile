@@ -2,7 +2,7 @@ FROM golang:1.20.5-buster as go
 ENV GO111MODULE=on
 ENV CGO_ENABLED=0
 ENV GOBIN=/bin
-ARG BUILDARCH
+ARG BUILDARCH=amd64
 RUN go install github.com/go-delve/delve/cmd/dlv@v1.8.2
 
 FROM go as build
