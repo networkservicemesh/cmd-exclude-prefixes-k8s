@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/networkservicemesh/sdk/pkg/tools/log"
 
 	"go.uber.org/goleak"
 )
@@ -144,7 +143,6 @@ func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePat
 
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					modifyCount++
-					log.FromContext(ctx).Infof("File is modified. Event: %v.", event.String())
 					if modifyCount == maxModifyCount {
 						close(errorCh)
 						return
