@@ -48,11 +48,9 @@ func fileWriter(filePath string) writePrefixesFunc {
 			return
 		}
 
-		if ctx.Err() == nil {
-			err = os.WriteFile(filePath, data, outputFilePermissions)
-			if err != nil {
-				log.FromContext(ctx).Fatalf("Unable to write into file: %v", err.Error())
-			}
+		err = os.WriteFile(filePath, data, outputFilePermissions)
+		if err != nil {
+			log.FromContext(ctx).Fatalf("Unable to write into file: %v", err.Error())
 		}
 	}
 }

@@ -112,6 +112,9 @@ func (epc *ExcludedPrefixCollector) Serve(ctx context.Context) {
 	for {
 		select {
 		case <-epc.notifyChan:
+
+			// Можно тут прочитать весь канал
+
 			epc.updateExcludedPrefixes(ctx)
 		case <-ctx.Done():
 			return
