@@ -133,6 +133,7 @@ func (epc *ExcludedPrefixCollector) updateExcludedPrefixes(ctx context.Context) 
 		var prefixesV4 []string
 		var prefixesV6 []string
 		for _, p := range sourcePrefixes {
+			log.FromContext(ctx).Infof("Prefix: %v", p)
 			prefix := strings.TrimSpace(p)
 			ip, _, err := net.ParseCIDR(prefix)
 			if err != nil {
