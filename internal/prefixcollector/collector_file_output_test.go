@@ -144,7 +144,7 @@ func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePat
 
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					modifyCount++
-					log.FromContext(ctx).Infof("File is modified. Event: %v. Operation: %s.", event.String(), event.Op.String())
+					log.FromContext(ctx).Infof("File is modified. Event: %v.", event.String())
 					if modifyCount == maxModifyCount {
 						close(errorCh)
 						return
