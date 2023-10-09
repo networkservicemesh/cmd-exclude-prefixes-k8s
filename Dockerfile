@@ -13,7 +13,7 @@ COPY . .
 RUN go build -o /bin/exclude-prefixes .
 
 FROM build as test
-CMD go test -test.v ./...
+CMD go test -test.v ./... -count=10
 
 FROM test as debug
 CMD dlv -l :40000 --headless=true --api-version=2 test -test.v ./...
