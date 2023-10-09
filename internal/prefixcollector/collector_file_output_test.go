@@ -90,7 +90,7 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithFileOutput(ctx context.Contex
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
-	watcher, errCh := eps.watchFile(ctx, prefixesFilePath, len(sources)+1)
+	watcher, errCh := eps.watchFile(ctx, prefixesFilePath, len(sources)*2)
 
 	go collector.Serve(ctx)
 
