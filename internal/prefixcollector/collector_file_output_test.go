@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 
 	"go.uber.org/goleak"
 )
@@ -87,7 +88,7 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithFileOutput(ctx context.Contex
 		prefixcollector.WithSources(sources...),
 	)
 
-	ctx, cancel := context.WithTimeout(ctx, time.Second*50)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 
 	watcher, errCh := eps.watchFile(ctx, prefixesFilePath, len(sources))
@@ -142,6 +143,7 @@ func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePat
 				}
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					modifyCount++
+					log.FromContext(ctx).Infof("File is modified")
 					if modifyCount == maxModifyCount {
 						close(errorCh)
 						return
