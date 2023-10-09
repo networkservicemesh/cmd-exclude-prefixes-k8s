@@ -144,10 +144,10 @@ func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePat
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					modifyCount++
 					log.FromContext(ctx).Infof("File is modified")
-					if modifyCount == maxModifyCount {
-						close(errorCh)
-						return
-					}
+					// if modifyCount == maxModifyCount {
+					// 	close(errorCh)
+					// 	return
+					// }
 				}
 			case watcherError, ok := <-watcher.Errors:
 				if !ok {
