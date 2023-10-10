@@ -61,6 +61,7 @@ func (eps *ExcludedPrefixesSuite) TestAllSourcesWithFileOutput() {
 				"127.0.2.1/16",
 				"168.92.0.1/24",
 			},
+			notifyChan,
 		),
 		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
 		prefixsource.NewConfigMapPrefixSource(
@@ -70,6 +71,40 @@ func (eps *ExcludedPrefixesSuite) TestAllSourcesWithFileOutput() {
 			configMapNamespace,
 			userConfigMapKey,
 		),
+	}
+
+	eps.testCollectorWithFileOutput(ctx, notifyChan, expectedResult, sources)
+}
+
+func (eps *ExcludedPrefixesSuite) TestDummySourceWithSeveralNotifications() {
+	defer goleak.VerifyNone(eps.T(), goleak.IgnoreCurrent())
+	expectedResult := []string{
+		"127.0.0.0/16",
+		"168.92.0.0/24",
+	}
+
+	notificationCount := 5
+
+	notifyChan := make(chan struct{}, notificationCount)
+	ctx, cancel := context.WithCancel(prefixcollector.WithKubernetesInterface(context.Background(), eps.clientSet))
+	defer cancel()
+
+	eps.createConfigMap(ctx, prefixsource.KubeNamespace, kubeConfigMapPath)
+	eps.createConfigMap(ctx, configMapNamespace, configMapPath)
+
+	source := newDummyPrefixSource(
+		[]string{
+			"127.0.0.1/16",
+			"127.0.2.1/16",
+			"168.92.0.1/24",
+		},
+		notifyChan,
+	)
+
+	sources := []prefixcollector.PrefixSource{source}
+
+	for i := 0; i < notificationCount; i++ {
+		source.SendNotification()
 	}
 
 	eps.testCollectorWithFileOutput(ctx, notifyChan, expectedResult, sources)
@@ -90,7 +125,8 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithFileOutput(ctx context.Contex
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
-	watcher, errCh := eps.watchFile(ctx, prefixesFilePath, len(sources))
+	modified := 0
+	watcher, errCh := eps.watchFile(ctx, prefixesFilePath, &modified)
 
 	go collector.Serve(ctx)
 
@@ -112,14 +148,14 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithFileOutput(ctx context.Contex
 		eps.T().Fatalf("Error transforming yaml to prefixes: %v", err)
 	}
 
+	eps.Require().LessOrEqual(modified, len(sources)*2)
 	eps.Require().ElementsMatch(expectedResult, prefixes)
 }
 
 func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePath string,
-	maxModifyCount int) (watcher *fsnotify.Watcher, errorCh chan error) {
+	modified *int) (watcher *fsnotify.Watcher, errorCh chan error) {
 	watcher, err := fsnotify.NewWatcher()
 	errorCh = make(chan error)
-	modifyCount := 0
 
 	if err != nil {
 		errorCh <- err
@@ -141,11 +177,7 @@ func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePat
 					return
 				}
 				if event.Op&fsnotify.Write == fsnotify.Write {
-					modifyCount++
-					if modifyCount == maxModifyCount {
-						close(errorCh)
-						return
-					}
+					(*modified)++
 				}
 			case watcherError, ok := <-watcher.Errors:
 				if !ok {

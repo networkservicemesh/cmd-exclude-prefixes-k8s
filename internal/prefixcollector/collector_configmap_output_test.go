@@ -56,14 +56,22 @@ const (
 
 type dummyPrefixSource struct {
 	prefixes []string
+	notify   chan<- struct{}
 }
 
 func (d *dummyPrefixSource) Prefixes() []string {
 	return d.prefixes
 }
 
-func newDummyPrefixSource(prefixes []string) *dummyPrefixSource {
-	return &dummyPrefixSource{prefixes}
+func (d *dummyPrefixSource) SendNotification() {
+	d.notify <- struct{}{}
+}
+
+func newDummyPrefixSource(prefixes []string, notify chan<- struct{}) *dummyPrefixSource {
+	return &dummyPrefixSource{
+		prefixes: prefixes,
+		notify:   notify,
+	}
 }
 
 type ExcludedPrefixesSuite struct {
@@ -94,6 +102,7 @@ func (eps *ExcludedPrefixesSuite) TestCollectorWithDummySources() {
 				"127.0.2.1/16",
 				"168.92.0.1/24",
 			},
+			notifyChan,
 		),
 		newDummyPrefixSource(
 			[]string{
@@ -101,6 +110,7 @@ func (eps *ExcludedPrefixesSuite) TestCollectorWithDummySources() {
 				"134.56.0.1/8",
 				"168.92.0.1/16",
 			},
+			notifyChan,
 		),
 	}
 
@@ -263,6 +273,7 @@ func (eps *ExcludedPrefixesSuite) TestAllSources() {
 				"127.0.2.1/16",
 				"168.92.0.1/24",
 			},
+			notifyChan,
 		),
 		prefixsource.NewKubeAdmPrefixSource(ctx, notifyChan),
 		prefixsource.NewConfigMapPrefixSource(
