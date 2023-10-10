@@ -25,6 +25,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -125,7 +126,7 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithFileOutput(ctx context.Contex
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
-	modified := 0
+	var modified atomic.Int32
 	watcher, errCh := eps.watchFile(ctx, prefixesFilePath, &modified)
 
 	go collector.Serve(ctx)
@@ -148,12 +149,12 @@ func (eps *ExcludedPrefixesSuite) testCollectorWithFileOutput(ctx context.Contex
 		eps.T().Fatalf("Error transforming yaml to prefixes: %v", err)
 	}
 
-	eps.Require().LessOrEqual(modified, len(sources)*2)
+	eps.Require().LessOrEqual(int(modified.Load()), len(sources)*2)
 	eps.Require().ElementsMatch(expectedResult, prefixes)
 }
 
 func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePath string,
-	modified *int) (watcher *fsnotify.Watcher, errorCh chan error) {
+	modified *atomic.Int32) (watcher *fsnotify.Watcher, errorCh chan error) {
 	watcher, err := fsnotify.NewWatcher()
 	errorCh = make(chan error)
 
@@ -177,7 +178,7 @@ func (eps *ExcludedPrefixesSuite) watchFile(ctx context.Context, prefixesFilePat
 					return
 				}
 				if event.Op&fsnotify.Write == fsnotify.Write {
-					(*modified)++
+					modified.Add(1)
 				}
 			case watcherError, ok := <-watcher.Errors:
 				if !ok {
