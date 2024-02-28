@@ -1,6 +1,6 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2022 Cisco and/or its affiliates.
+// Copyright (c) 2022-2024 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -77,6 +77,7 @@ func (cmps *ConfigMapPrefixSource) watchConfigMap() {
 		log.FromContext(cmps.ctx).Errorf("Error creating config map watch: %v", err)
 		return
 	}
+	defer configMapWatch.Stop()
 
 	// we should check current state after we create the watcher,
 	// or else we could miss an update

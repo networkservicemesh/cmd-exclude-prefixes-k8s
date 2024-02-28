@@ -1,6 +1,6 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2022 Cisco and/or its affiliates.
+// Copyright (c) 2022-2024 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -60,13 +60,15 @@ func NewKubernetesPrefixSource(ctx context.Context, notify chan<- struct{}) *Kub
 
 func (kps *KubernetesPrefixSource) watchSubnets(clientSet kubernetes.Interface) {
 	log.FromContext(kps.ctx).Infof("KubernetesPrefixSource watch subnets")
+	subnetCtx, cancelSubnetCtx := context.WithCancel(kps.ctx)
+	defer cancelSubnetCtx()
 
-	podChan, err := watchPodCIDR(kps.ctx, clientSet)
+	podChan, err := watchPodCIDR(subnetCtx, clientSet)
 	if err != nil {
 		return
 	}
 
-	serviceChan, err := watchServiceIPAddr(kps.ctx, clientSet)
+	serviceChan, err := watchServiceIPAddr(subnetCtx, clientSet)
 	if err != nil {
 		log.FromContext(kps.ctx).Error(err)
 		return
@@ -80,7 +82,7 @@ func (kps *KubernetesPrefixSource) waitForSubnets(podChan, serviceChan <-chan []
 	for {
 		select {
 		case <-kps.ctx.Done():
-			log.FromContext(kps.ctx).Warn("Watch kubeadm configMap")
+			log.FromContext(kps.ctx).Warn("kubernetesPrefixSource context is canceled")
 			return
 		case subnet, ok := <-podChan:
 			if !ok {
