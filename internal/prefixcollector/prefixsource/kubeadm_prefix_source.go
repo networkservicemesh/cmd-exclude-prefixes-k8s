@@ -144,7 +144,7 @@ func splitPrefix(prefix string) []string {
 	var parts []string
 	for _, raw := range raws {
 		part := strings.TrimSpace(raw)
-		if len(part) > 0 {
+		if part != "" {
 			parts = append(parts, part)
 		}
 	}

@@ -400,6 +400,7 @@ func interceptWatcher(clients *fake.Clientset) (getCount func() int, stopAndDisa
 	count := 0
 	watcher := watch.NewFake()
 
+	// nolint: revive
 	var reactionFunc k8stest.WatchReactionFunc = func(action k8stest.Action) (bool, watch.Interface, error) {
 		count++
 		return enable, watcher, nil
