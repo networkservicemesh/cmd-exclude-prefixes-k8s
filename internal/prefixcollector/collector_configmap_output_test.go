@@ -1,6 +1,6 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2022-2023 Cisco and/or its affiliates.
+// Copyright (c) 2022-2024 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -400,6 +400,7 @@ func interceptWatcher(clients *fake.Clientset) (getCount func() int, stopAndDisa
 	count := 0
 	watcher := watch.NewFake()
 
+	// nolint: revive
 	var reactionFunc k8stest.WatchReactionFunc = func(action k8stest.Action) (bool, watch.Interface, error) {
 		count++
 		return enable, watcher, nil
