@@ -6,13 +6,13 @@ require (
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/ghodss/yaml v1.0.0
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/networkservicemesh/sdk v0.5.1-0.20241106141620-b53ccb0ebe20
-	github.com/networkservicemesh/sdk-k8s v0.0.0-20241106142135-62183f1456e5
+	github.com/networkservicemesh/sdk v0.5.1-0.20241209100421-a3673d415f18
+	github.com/networkservicemesh/sdk-k8s v0.0.0-20241209101017-c819d12e9ed0
 	github.com/onsi/gomega v1.27.6
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.4
-	go.uber.org/goleak v1.3.0
+	go.uber.org/goleak v1.3.1-0.20241121203838-4ff5fa6529ee
 	k8s.io/api v0.28.3
 	k8s.io/apimachinery v0.28.3
 	k8s.io/client-go v0.28.3
@@ -47,7 +47,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/networkservicemesh/api v1.13.4-0.20240815101554-fdbfcd84fd0e // indirect
+	github.com/networkservicemesh/api v1.14.2-0.20241114102931-df7655523954 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.17.0 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
