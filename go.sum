@@ -330,8 +330,8 @@ github.com/networkservicemesh/api v1.15.0-rc.1.0.20250625083423-2e0c8496e4e3 h1:
 github.com/networkservicemesh/api v1.15.0-rc.1.0.20250625083423-2e0c8496e4e3/go.mod h1:AciGKdCuOxSBSch22q/jlPqwhLy5tU8B41cwqMb8MPI=
 github.com/networkservicemesh/sdk v0.5.1-0.20251121154018-e4918b795f91 h1:CwD8lopjNrlAds0Tcmefd5M2G0QCEL5BVaX0o6vl9UM=
 github.com/networkservicemesh/sdk v0.5.1-0.20251121154018-e4918b795f91/go.mod h1:sOG9+KhCElbu6Av5gn6lhkoTLR/Q0OCPD2iZpiZLLMU=
-github.com/networkservicemesh/sdk-k8s v0.0.0-20251121154614-6aeecb59fe4a h1:HlH7r5HHLZZxmDdgoccAeubDECRrXuDY3X4Nps6/0Cw=
-github.com/networkservicemesh/sdk-k8s v0.0.0-20251121154614-6aeecb59fe4a/go.mod h1:wFelfTpmgnmX3j43uaCbTRsoKEBxV3C0TqK6EoCTDgc=
+github.com/networkservicemesh/sdk-k8s v0.0.0-20251127092809-ce51d8fc69ad h1:pivzakhm3bg/ddubNve37RShrG4nyub0pGzc9DhZYuA=
+github.com/networkservicemesh/sdk-k8s v0.0.0-20251127092809-ce51d8fc69ad/go.mod h1:wFelfTpmgnmX3j43uaCbTRsoKEBxV3C0TqK6EoCTDgc=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 github.com/oklog/ulid v1.3.1/go.mod h1:CirwcVhetQ6Lv90oh/F+FBtV6XMibvdAFo93nm5qn4U=
 github.com/olekukonko/tablewriter v0.0.0-20170122224234-a0225b3f23b5/go.mod h1:vsDQFd/mU46D+Z4whnwzcISnGGzXWMclvtLoiIKAKIo=
