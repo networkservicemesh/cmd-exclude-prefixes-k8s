@@ -7,7 +7,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/networkservicemesh/sdk v0.5.1-0.20260904121949-572d69f3c19a
-	github.com/networkservicemesh/sdk-k8s v0.0.0-20260904122650-c376e3d21816
+	github.com/networkservicemesh/sdk-k8s v0.0.0-20261016102248-cb3fd69e8d8f
 	github.com/onsi/gomega v1.35.1
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3
